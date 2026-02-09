@@ -131,7 +131,7 @@ export function useEmpresas() {
     const { data, error } = await supabase
       .from("empresas")
       .select("*")
-      .order("numero", { ascending: true });
+      .order("nome", { ascending: true });
 
     if (error) {
       toast({ title: "Erro ao carregar empresas", description: error.message, variant: "destructive" });
@@ -146,7 +146,7 @@ export function useEmpresas() {
         const { data: seededData } = await supabase
           .from("empresas")
           .select("*")
-          .order("numero", { ascending: true });
+          .order("nome", { ascending: true });
         setEmpresas((seededData ?? []).map(rowToEmpresa));
       }
     } else {
