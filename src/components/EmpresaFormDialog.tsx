@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Empresa, MesKey, MES_LABELS, Socio, StatusExtrato, calcularFaturamento } from "@/types/fiscal";
+import { Empresa, MesKey, MES_LABELS, Socio, StatusExtrato, MesesData, ObrigacoesData, calcularFaturamento } from "@/types/fiscal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,11 +26,33 @@ const emptyMes = () => ({
   distribuicaoLucros: 0,
 });
 
+const createEmptyMeses = (): MesesData => ({
+  janeiro: emptyMes(),
+  fevereiro: emptyMes(),
+  marco: emptyMes(),
+  abril: emptyMes(),
+  maio: emptyMes(),
+  junho: emptyMes(),
+  julho: emptyMes(),
+  agosto: emptyMes(),
+  setembro: emptyMes(),
+  outubro: emptyMes(),
+  novembro: emptyMes(),
+  dezembro: emptyMes(),
+});
+
 const emptyObrigacoes = () => ({
   lancamentoFiscal: "pendente" as const,
   reinf: "pendente" as const,
   dcftWeb: "pendente" as const,
   mit: "pendente" as const,
+});
+
+const createEmptyObrigacoes = (): ObrigacoesData => ({
+  marco: emptyObrigacoes(),
+  junho: emptyObrigacoes(),
+  setembro: emptyObrigacoes(),
+  dezembro: emptyObrigacoes(),
 });
 
 export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdate }: EmpresaFormDialogProps) {
@@ -41,7 +63,7 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
   const [dataAbertura, setDataAbertura] = useState(empresa?.dataAbertura ?? "");
   const [emiteNotaFiscal, setEmiteNotaFiscal] = useState(empresa?.emiteNotaFiscal ?? true);
   const [socios, setSocios] = useState<Socio[]>(empresa?.socios ?? [{ nome: "", percentual: 100, cpf: "" }]);
-  const [meses, setMeses] = useState(empresa?.meses ?? { janeiro: emptyMes(), fevereiro: emptyMes(), marco: emptyMes() });
+  const [meses, setMeses] = useState<MesesData>(empresa?.meses ?? createEmptyMeses());
 
   const handleSave = () => {
     const data = {
@@ -51,7 +73,7 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
       emiteNotaFiscal,
       socios,
       meses,
-      obrigacoes: empresa?.obrigacoes ?? { janeiro: emptyObrigacoes(), fevereiro: emptyObrigacoes(), marco: emptyObrigacoes() },
+      obrigacoes: empresa?.obrigacoes ?? createEmptyObrigacoes(),
     };
     if (isEditing && empresa) {
       onUpdate(empresa.id, data);
@@ -136,9 +158,9 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
 
           {/* Faturamento por mês */}
           <Tabs defaultValue="janeiro">
-            <TabsList>
+            <TabsList className="flex flex-wrap h-auto gap-1">
               {(Object.keys(MES_LABELS) as MesKey[]).map((m) => (
-                <TabsTrigger key={m} value={m}>{MES_LABELS[m]}</TabsTrigger>
+                <TabsTrigger key={m} value={m} className="text-xs px-2 py-1">{MES_LABELS[m].substring(0, 3)}</TabsTrigger>
               ))}
             </TabsList>
             {(Object.keys(MES_LABELS) as MesKey[]).map((m) => (

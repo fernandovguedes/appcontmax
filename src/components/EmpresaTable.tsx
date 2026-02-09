@@ -1,4 +1,4 @@
-import { Empresa, MesKey, StatusEntrega, StatusExtrato, calcularDistribuicaoSocios } from "@/types/fiscal";
+import { Empresa, MesKey, StatusEntrega, StatusExtrato, calcularDistribuicaoSocios, isMesFechamentoTrimestre, MESES_FECHAMENTO_TRIMESTRE } from "@/types/fiscal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge, ExtratoBadge } from "@/components/StatusBadge";
 import { DistribuicaoSociosPopover } from "@/components/DistribuicaoSociosPopover";
@@ -13,15 +13,26 @@ interface EmpresaTableProps {
   mesSelecionado: MesKey;
   onEdit: (empresa: Empresa) => void;
   onDelete: (id: string) => void;
-  onStatusChange: (empresaId: string, mes: MesKey, campo: keyof Empresa["obrigacoes"]["janeiro"], valor: StatusEntrega) => void;
+  onStatusChange: (empresaId: string, mesTrimestre: typeof MESES_FECHAMENTO_TRIMESTRE[number], campo: keyof Empresa["obrigacoes"]["marco"], valor: StatusEntrega) => void;
   onExtratoChange: (empresaId: string, mes: MesKey, valor: StatusExtrato) => void;
 }
 
 const LIMITE_DISTRIBUICAO_SOCIO = 50000;
 
+// Mapeia qualquer mês para o mês de fechamento do trimestre correspondente
+function getMesFechamentoTrimestre(mes: MesKey): typeof MESES_FECHAMENTO_TRIMESTRE[number] {
+  if (["janeiro", "fevereiro", "marco"].includes(mes)) return "marco";
+  if (["abril", "maio", "junho"].includes(mes)) return "junho";
+  if (["julho", "agosto", "setembro"].includes(mes)) return "setembro";
+  return "dezembro";
+}
+
 export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onStatusChange, onExtratoChange }: EmpresaTableProps) {
+  const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
+  const mesTrimestre = getMesFechamentoTrimestre(mesSelecionado);
+
   return (
-    <div className="rounded-lg border bg-card">
+    <div className="rounded-lg border bg-card overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow className="bg-primary/5 hover:bg-primary/5">
@@ -31,23 +42,26 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
             <TableHead className="text-center">Extrato</TableHead>
             <TableHead className="text-right">Faturamento</TableHead>
             <TableHead className="text-right">Dist. Lucros</TableHead>
-            <TableHead className="text-center">Lanç. Fiscal</TableHead>
-            <TableHead className="text-center">REINF</TableHead>
-            <TableHead className="text-center">DCTF Web</TableHead>
-            <TableHead className="text-center">MIT</TableHead>
+            {isFechamento && (
+              <>
+                <TableHead className="text-center">Lanç. Fiscal</TableHead>
+                <TableHead className="text-center">REINF</TableHead>
+                <TableHead className="text-center">DCTF Web</TableHead>
+                <TableHead className="text-center">MIT</TableHead>
+              </>
+            )}
             <TableHead className="w-24 text-center">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {empresas.length === 0 && (
             <TableRow>
-              <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={isFechamento ? 11 : 7} className="h-24 text-center text-muted-foreground">
                 Nenhuma empresa cadastrada.
               </TableCell>
             </TableRow>
           )}
           {empresas.map((empresa) => {
-            const ob = empresa.obrigacoes[mesSelecionado];
             const mes = empresa.meses[mesSelecionado];
             const sociosComDistribuicao = calcularDistribuicaoSocios(empresa.socios, mes.distribuicaoLucros);
             const temAlerta = sociosComDistribuicao.some(s => (s.distribuicaoLucros ?? 0) > LIMITE_DISTRIBUICAO_SOCIO);
@@ -87,33 +101,37 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
                     distribuicaoTotal={mes.distribuicaoLucros} 
                   />
                 </TableCell>
-                <TableCell className="text-center">
-                  <StatusSelect
-                    value={ob.lancamentoFiscal}
-                    onChange={(v) => onStatusChange(empresa.id, mesSelecionado, "lancamentoFiscal", v)}
-                  />
-                </TableCell>
-                <TableCell className="text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <StatusSelect
-                      value={ob.reinf}
-                      onChange={(v) => onStatusChange(empresa.id, mesSelecionado, "reinf", v)}
-                    />
-                    <ReinfAlert empresa={empresa} mesSelecionado={mesSelecionado} />
-                  </div>
-                </TableCell>
-                <TableCell className="text-center">
-                  <StatusSelect
-                    value={ob.dcftWeb}
-                    onChange={(v) => onStatusChange(empresa.id, mesSelecionado, "dcftWeb", v)}
-                  />
-                </TableCell>
-                <TableCell className="text-center">
-                  <StatusSelect
-                    value={ob.mit}
-                    onChange={(v) => onStatusChange(empresa.id, mesSelecionado, "mit", v)}
-                  />
-                </TableCell>
+                {isFechamento && (
+                  <>
+                    <TableCell className="text-center">
+                      <StatusSelect
+                        value={empresa.obrigacoes[mesTrimestre].lancamentoFiscal}
+                        onChange={(v) => onStatusChange(empresa.id, mesTrimestre, "lancamentoFiscal", v)}
+                      />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <StatusSelect
+                          value={empresa.obrigacoes[mesTrimestre].reinf}
+                          onChange={(v) => onStatusChange(empresa.id, mesTrimestre, "reinf", v)}
+                        />
+                        <ReinfAlert empresa={empresa} mesFechamento={mesTrimestre} />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <StatusSelect
+                        value={empresa.obrigacoes[mesTrimestre].dcftWeb}
+                        onChange={(v) => onStatusChange(empresa.id, mesTrimestre, "dcftWeb", v)}
+                      />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <StatusSelect
+                        value={empresa.obrigacoes[mesTrimestre].mit}
+                        onChange={(v) => onStatusChange(empresa.id, mesTrimestre, "mit", v)}
+                      />
+                    </TableCell>
+                  </>
+                )}
                 <TableCell>
                   <div className="flex items-center justify-center gap-1">
                     <Button variant="ghost" size="icon" onClick={() => onEdit(empresa)}>
