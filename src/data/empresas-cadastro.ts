@@ -7,6 +7,7 @@ const emptyMes = (): DadosMensais => ({
   faturamentoExterior: 0,
   faturamentoTotal: 0,
   distribuicaoLucros: 0,
+  lancadoQuestor: "pendente",
 });
 
 const createEmptyMeses = (): MesesData => ({
@@ -26,7 +27,7 @@ const createEmptyObrigacoes = (): ObrigacoesData => ({
 
 function e(n: number, nome: string, cnpj: string, dt: string, nf: boolean, socios: Socio[]): Empresa {
   return {
-    id: crypto.randomUUID(), numero: n, nome, cnpj, dataAbertura: dt,
+    id: crypto.randomUUID(), numero: n, nome, cnpj, inicioCompetencia: dt,
     dataCadastro: "2026-01-01",
     regimeTributario: "simples_nacional", emiteNotaFiscal: nf, socios,
     meses: createEmptyMeses(), obrigacoes: createEmptyObrigacoes(),

@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { Empresa, MesKey, MES_LABELS, REGIME_LABELS, isMesFechamentoTrimestre, getMesesTrimestre } from "@/types/fiscal";
+import { Empresa, MesKey, MES_LABELS, REGIME_LABELS, isMesFechamentoTrimestre, getMesesTrimestre, isMesReinfPosFechamento, isMesDctfPosFechamento, getTrimestreFechamentoAnterior, calcularFaturamentoTrimestre } from "@/types/fiscal";
 
 function getMesFechamentoTrimestre(mes: MesKey): MesKey {
   if (["janeiro", "fevereiro", "marco"].includes(mes)) return "marco";
@@ -24,9 +24,19 @@ const extratoLabel = (s: string) => {
   return s;
 };
 
+const questorLabel = (s: string) => {
+  if (s === "ok") return "OK";
+  if (s === "sem_faturamento") return "Sem Faturamento";
+  if (s === "pendente") return "Pendente";
+  return s;
+};
+
 export function exportToExcel(empresas: Empresa[], mesSelecionado: MesKey) {
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
   const mesTrimestre = getMesFechamentoTrimestre(mesSelecionado);
+  const isReinfPos = isMesReinfPosFechamento(mesSelecionado);
+  const isDctfPos = isMesDctfPosFechamento(mesSelecionado);
+  const trimestreAnterior = getTrimestreFechamentoAnterior(mesSelecionado);
 
   const rows = empresas.map((e) => {
     const mes = e.meses[mesSelecionado];
@@ -41,6 +51,7 @@ export function exportToExcel(empresas: Empresa[], mesSelecionado: MesKey) {
       "Faturamento NF": mes.faturamentoNotaFiscal,
       "Faturamento Exterior": mes.faturamentoExterior,
       "Faturamento Total": mes.faturamentoTotal,
+      "Lanç. Questor": questorLabel(mes.lancadoQuestor ?? "pendente"),
       "Dist. Lucros (75%)": mes.distribuicaoLucros,
     };
 
@@ -53,10 +64,21 @@ export function exportToExcel(empresas: Empresa[], mesSelecionado: MesKey) {
       base["Lanç. Fiscal"] = statusLabel(obr.lancamentoFiscal);
       base["REINF"] = statusLabel(obr.reinf);
       base["DCTFWeb"] = statusLabel(obr.dcftWeb);
-      base["MIT"] = statusLabel(obr.mit);
+      if (e.regimeTributario === "lucro_presumido") {
+        base["MIT"] = statusLabel(obr.mit);
+      }
     }
 
-    // Sócios
+    if (isReinfPos && trimestreAnterior) {
+      const fat = calcularFaturamentoTrimestre(e, trimestreAnterior);
+      base["REINF Pós"] = fat > 0 ? statusLabel(mes.reinfPosFechamento ?? "pendente") : "—";
+    }
+
+    if (isDctfPos && trimestreAnterior) {
+      const fat = calcularFaturamentoTrimestre(e, trimestreAnterior);
+      base["DCTF S/Mov"] = fat > 0 ? statusLabel(mes.dctfWebSemMovimento ?? "pendente") : "—";
+    }
+
     e.socios.forEach((s, i) => {
       base[`Sócio ${i + 1}`] = s.nome;
       base[`CPF Sócio ${i + 1}`] = s.cpf;

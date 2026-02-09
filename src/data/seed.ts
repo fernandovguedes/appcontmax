@@ -8,6 +8,7 @@ const emptyMes = (): DadosMensais => ({
   faturamentoExterior: 0,
   faturamentoTotal: 0,
   distribuicaoLucros: 0,
+  lancadoQuestor: "pendente",
 });
 
 const createEmptyMeses = (): MesesData => ({
@@ -69,7 +70,7 @@ function criarEmpresa(
     numero,
     nome,
     cnpj,
-    dataAbertura,
+    inicioCompetencia: dataAbertura,
     dataCadastro: "2026-01-01",
     regimeTributario: regime,
     emiteNotaFiscal,

@@ -1,6 +1,6 @@
-import { Empresa, MesKey, StatusEntrega, StatusExtrato, calcularDistribuicaoSocios, isMesFechamentoTrimestre, MESES_FECHAMENTO_TRIMESTRE, getMesesTrimestre, REGIME_LABELS } from "@/types/fiscal";
+import { Empresa, MesKey, StatusEntrega, StatusExtrato, StatusQuestor, calcularDistribuicaoSocios, isMesFechamentoTrimestre, MESES_FECHAMENTO_TRIMESTRE, getMesesTrimestre, isMesReinfPosFechamento, isMesDctfPosFechamento, getTrimestreFechamentoAnterior, calcularFaturamentoTrimestre } from "@/types/fiscal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { StatusBadge, ExtratoBadge } from "@/components/StatusBadge";
+import { StatusBadge, ExtratoBadge, QuestorBadge } from "@/components/StatusBadge";
 import { DistribuicaoSociosPopover } from "@/components/DistribuicaoSociosPopover";
 import { FaturamentoPopover } from "@/components/FaturamentoPopover";
 import { ReinfAlert } from "@/components/ReinfAlert";
@@ -17,6 +17,7 @@ interface EmpresaTableProps {
   onDelete: (id: string) => void;
   onStatusChange: (empresaId: string, mesTrimestre: typeof MESES_FECHAMENTO_TRIMESTRE[number], campo: keyof Empresa["obrigacoes"]["marco"], valor: StatusEntrega) => void;
   onExtratoChange: (empresaId: string, mes: MesKey, valor: StatusExtrato) => void;
+  onMesFieldChange: (empresaId: string, mes: MesKey, campo: string, valor: any) => void;
 }
 
 const LIMITE_DISTRIBUICAO_SOCIO = 50000;
@@ -34,9 +35,14 @@ function calcularDistribuicaoTrimestral(empresa: Empresa, mesFechamento: MesKey)
   return totalFaturamento * 0.75;
 }
 
-export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onStatusChange, onExtratoChange }: EmpresaTableProps) {
+export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onStatusChange, onExtratoChange, onMesFieldChange }: EmpresaTableProps) {
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
   const mesTrimestre = getMesFechamentoTrimestre(mesSelecionado);
+  const isReinfPos = isMesReinfPosFechamento(mesSelecionado);
+  const isDctfPos = isMesDctfPosFechamento(mesSelecionado);
+  const trimestreAnterior = getTrimestreFechamentoAnterior(mesSelecionado);
+
+  const colCount = 9 + (isFechamento ? 5 : 0) + (isReinfPos ? 1 : 0) + (isDctfPos ? 1 : 0);
 
   return (
     <div className="rounded-lg border bg-card overflow-x-auto">
@@ -49,6 +55,7 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
             <TableHead className="w-10 text-center">NF</TableHead>
             <TableHead className="text-center">Extrato</TableHead>
             <TableHead className="text-right">Faturamento</TableHead>
+            <TableHead className="text-center">Lanç. Questor</TableHead>
             <TableHead className="text-right">Dist. Lucros</TableHead>
             {isFechamento && (
               <>
@@ -59,13 +66,19 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
                 <TableHead className="text-center">MIT</TableHead>
               </>
             )}
+            {isReinfPos && (
+              <TableHead className="text-center">REINF Pós</TableHead>
+            )}
+            {isDctfPos && (
+              <TableHead className="text-center">DCTF S/Mov</TableHead>
+            )}
             <TableHead className="w-24 text-center">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {empresas.length === 0 && (
             <TableRow>
-              <TableCell colSpan={isFechamento ? 13 : 8} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">
                 Nenhuma empresa cadastrada.
               </TableCell>
             </TableRow>
@@ -78,6 +91,10 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
             const distribuicaoTrimestral = isFechamento ? calcularDistribuicaoTrimestral(empresa, mesSelecionado) : 0;
             const sociosTrimestrais = isFechamento ? calcularDistribuicaoSocios(empresa.socios, distribuicaoTrimestral) : [];
             const temAlertaTrimestral = sociosTrimestrais.some(s => (s.distribuicaoLucros ?? 0) > LIMITE_DISTRIBUICAO_SOCIO);
+
+            // Check if REINF was obligatory in the previous trimestre (for post-fechamento columns)
+            const fatTrimestreAnterior = trimestreAnterior ? calcularFaturamentoTrimestre(empresa, trimestreAnterior) : 0;
+            const reinfObrigatoria = fatTrimestreAnterior > 0;
 
             return (
               <TableRow key={empresa.id} className={temAlerta || temAlertaTrimestral ? "bg-destructive/5" : ""}>
@@ -112,6 +129,12 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
                 </TableCell>
                 <TableCell className="text-right">
                   <FaturamentoPopover dados={mes} />
+                </TableCell>
+                <TableCell className="text-center">
+                  <QuestorSelect
+                    value={mes.lancadoQuestor}
+                    onChange={(v) => onMesFieldChange(empresa.id, mesSelecionado, "lancadoQuestor", v)}
+                  />
                 </TableCell>
                 <TableCell className="text-right">
                   <DistribuicaoSociosPopover 
@@ -157,12 +180,40 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
                       />
                     </TableCell>
                     <TableCell className="text-center">
-                      <StatusSelect
-                        value={empresa.obrigacoes[mesTrimestre].mit}
-                        onChange={(v) => onStatusChange(empresa.id, mesTrimestre, "mit", v)}
-                      />
+                      {empresa.regimeTributario === "lucro_presumido" ? (
+                        <StatusSelect
+                          value={empresa.obrigacoes[mesTrimestre].mit}
+                          onChange={(v) => onStatusChange(empresa.id, mesTrimestre, "mit", v)}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
                     </TableCell>
                   </>
+                )}
+                {isReinfPos && (
+                  <TableCell className="text-center">
+                    {reinfObrigatoria ? (
+                      <StatusSelect
+                        value={mes.reinfPosFechamento ?? "pendente"}
+                        onChange={(v) => onMesFieldChange(empresa.id, mesSelecionado, "reinfPosFechamento", v)}
+                      />
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
+                  </TableCell>
+                )}
+                {isDctfPos && (
+                  <TableCell className="text-center">
+                    {reinfObrigatoria ? (
+                      <StatusSelect
+                        value={mes.dctfWebSemMovimento ?? "pendente"}
+                        onChange={(v) => onMesFieldChange(empresa.id, mesSelecionado, "dctfWebSemMovimento", v)}
+                      />
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
+                  </TableCell>
                 )}
                 <TableCell>
                   <div className="flex items-center justify-center gap-1">
@@ -208,6 +259,21 @@ function ExtratoSelect({ value, onChange }: { value: StatusExtrato; onChange: (v
         <SelectItem value="sim">✅ Enviado</SelectItem>
         <SelectItem value="nao">❌ Não Enviado</SelectItem>
         <SelectItem value="sem_faturamento">➖ Sem Faturamento</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
+
+function QuestorSelect({ value, onChange }: { value: StatusQuestor; onChange: (v: StatusQuestor) => void }) {
+  return (
+    <Select value={value} onValueChange={(v) => onChange(v as StatusQuestor)}>
+      <SelectTrigger className="h-8 w-[120px] mx-auto border-0 bg-transparent p-0 focus:ring-0 [&>svg]:ml-1">
+        <QuestorBadge status={value} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="ok">✅ OK</SelectItem>
+        <SelectItem value="sem_faturamento">➖ Sem Faturamento</SelectItem>
+        <SelectItem value="pendente">❌ Pendente</SelectItem>
       </SelectContent>
     </Select>
   );
