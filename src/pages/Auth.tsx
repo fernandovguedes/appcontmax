@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 
 export default function Auth() {
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -18,24 +17,11 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: window.location.origin },
-        });
-        if (error) throw error;
-        toast({
-          title: "Cadastro realizado!",
-          description: "Verifique seu email para confirmar a conta.",
-        });
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
     } catch (error: any) {
       toast({
-        title: "Erro",
+        title: "Erro ao entrar",
         description: error.message,
         variant: "destructive",
       });
@@ -48,11 +34,11 @@ export default function Auth() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg">
+          <div className="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg">
             CF
           </div>
-          <CardTitle>{isLogin ? "Entrar" : "Criar Conta"}</CardTitle>
-          <CardDescription>Controle Fiscal · Simples Nacional · 2026</CardDescription>
+          <CardTitle>Controle Fiscal</CardTitle>
+          <CardDescription>Acesse com suas credenciais</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -65,14 +51,11 @@ export default function Auth() {
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Aguarde..." : isLogin ? "Entrar" : "Cadastrar"}
+              {loading ? "Aguarde..." : "Entrar"}
             </Button>
           </form>
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            {isLogin ? "Não tem conta?" : "Já tem conta?"}{" "}
-            <button type="button" className="text-primary underline" onClick={() => setIsLogin(!isLogin)}>
-              {isLogin ? "Cadastre-se" : "Faça login"}
-            </button>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            Contate o administrador para obter acesso.
           </p>
         </CardContent>
       </Card>
