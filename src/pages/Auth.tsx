@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import logo from "@/assets/logo_contmax.png";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -34,9 +35,7 @@ export default function Auth() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg">
-            CF
-          </div>
+          <img src={logo} alt="Contmax" className="mx-auto mb-2 h-12" />
           <CardTitle>Controle Fiscal</CardTitle>
           <CardDescription>Acesse com suas credenciais</CardDescription>
         </CardHeader>

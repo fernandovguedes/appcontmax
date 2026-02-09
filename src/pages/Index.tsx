@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Filter, LogOut } from "lucide-react";
+import logo from "@/assets/logo_contmax.png";
 
 const Index = () => {
   const { empresas, loading, addEmpresa, updateEmpresa, deleteEmpresa } = useEmpresas();
@@ -106,9 +107,7 @@ const Index = () => {
       <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-              CF
-            </div>
+            <img src={logo} alt="Contmax" className="h-9" />
             <div>
               <h1 className="text-lg font-bold leading-tight">Controle Fiscal</h1>
               <p className="text-xs text-muted-foreground">Contmax · 2026</p>
