@@ -14,7 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      empresas: {
+        Row: {
+          cnpj: string
+          created_at: string
+          data_abertura: string | null
+          data_cadastro: string
+          emite_nota_fiscal: boolean
+          id: string
+          meses: Json
+          nome: string
+          numero: number
+          obrigacoes: Json
+          regime_tributario: string
+          socios: Json
+          updated_at: string
+        }
+        Insert: {
+          cnpj: string
+          created_at?: string
+          data_abertura?: string | null
+          data_cadastro?: string
+          emite_nota_fiscal?: boolean
+          id?: string
+          meses?: Json
+          nome: string
+          numero?: number
+          obrigacoes?: Json
+          regime_tributario?: string
+          socios?: Json
+          updated_at?: string
+        }
+        Update: {
+          cnpj?: string
+          created_at?: string
+          data_abertura?: string | null
+          data_cadastro?: string
+          emite_nota_fiscal?: boolean
+          id?: string
+          meses?: Json
+          nome?: string
+          numero?: number
+          obrigacoes?: Json
+          regime_tributario?: string
+          socios?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
