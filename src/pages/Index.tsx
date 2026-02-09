@@ -1,24 +1,28 @@
 import { useState, useCallback } from "react";
 import { useEmpresas } from "@/hooks/useEmpresas";
-import { Empresa, MesKey, MES_LABELS, StatusEntrega, StatusExtrato } from "@/types/fiscal";
+import { Empresa, MesKey, MES_LABELS, StatusEntrega, StatusExtrato, RegimeTributario, REGIME_LABELS } from "@/types/fiscal";
 import { DashboardSummary } from "@/components/DashboardSummary";
 import { EmpresaTable } from "@/components/EmpresaTable";
 import { EmpresaFormDialog } from "@/components/EmpresaFormDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Search } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Search, Filter } from "lucide-react";
 
 const Index = () => {
   const { empresas, addEmpresa, updateEmpresa, deleteEmpresa } = useEmpresas();
   const [mesSelecionado, setMesSelecionado] = useState<MesKey>("janeiro");
   const [search, setSearch] = useState("");
+  const [regimeFilter, setRegimeFilter] = useState<RegimeTributario | "todos">("todos");
   const [formOpen, setFormOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
 
-  const filtered = empresas.filter(
-    (e) => e.nome.toLowerCase().includes(search.toLowerCase()) || e.cnpj.includes(search),
-  );
+  const filtered = empresas.filter((e) => {
+    const matchesSearch = e.nome.toLowerCase().includes(search.toLowerCase()) || e.cnpj.includes(search);
+    const matchesRegime = regimeFilter === "todos" || e.regimeTributario === regimeFilter;
+    return matchesSearch && matchesRegime;
+  });
 
   const handleEdit = useCallback((empresa: Empresa) => {
     setEditingEmpresa(empresa);
@@ -69,7 +73,7 @@ const Index = () => {
             </div>
             <div>
               <h1 className="text-lg font-bold leading-tight">Controle Fiscal</h1>
-              <p className="text-xs text-muted-foreground">Simples Nacional · Jan–Mar 2026</p>
+              <p className="text-xs text-muted-foreground">Simples Nacional · 2026</p>
             </div>
           </div>
           <Button onClick={handleNew} className="bg-accent text-accent-foreground hover:bg-accent/90">
@@ -80,7 +84,7 @@ const Index = () => {
 
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-6">
         {/* Summary */}
-        <DashboardSummary empresas={empresas} mesSelecionado={mesSelecionado} />
+        <DashboardSummary empresas={filtered} mesSelecionado={mesSelecionado} />
 
         {/* Controls */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -93,14 +97,27 @@ const Index = () => {
               ))}
             </TabsList>
           </Tabs>
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar empresa ou CNPJ..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
+          <div className="flex items-center gap-2">
+            <Select value={regimeFilter} onValueChange={(v) => setRegimeFilter(v as RegimeTributario | "todos")}>
+              <SelectTrigger className="w-[180px]">
+                <Filter className="h-4 w-4 mr-1 text-muted-foreground" />
+                <SelectValue placeholder="Regime" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os Regimes</SelectItem>
+                <SelectItem value="simples_nacional">Simples Nacional</SelectItem>
+                <SelectItem value="lucro_presumido">Lucro Presumido</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar empresa ou CNPJ..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
           </div>
         </div>
 
@@ -129,7 +146,3 @@ const Index = () => {
 };
 
 export default Index;
-
-localStorage.clear();
-
-localStorage.clear;

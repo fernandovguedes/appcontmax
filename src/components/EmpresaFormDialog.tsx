@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Empresa, MesKey, MES_LABELS, Socio, StatusExtrato, MesesData, ObrigacoesData, calcularFaturamento } from "@/types/fiscal";
+import { Empresa, MesKey, MES_LABELS, Socio, StatusExtrato, MesesData, ObrigacoesData, calcularFaturamento, RegimeTributario, REGIME_LABELS } from "@/types/fiscal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +62,7 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
   const [cnpj, setCnpj] = useState(empresa?.cnpj ?? "");
   const [dataAbertura, setDataAbertura] = useState(empresa?.dataAbertura ?? "");
   const [emiteNotaFiscal, setEmiteNotaFiscal] = useState(empresa?.emiteNotaFiscal ?? true);
+  const [regimeTributario, setRegimeTributario] = useState<RegimeTributario>(empresa?.regimeTributario ?? "simples_nacional");
   const [socios, setSocios] = useState<Socio[]>(empresa?.socios ?? [{ nome: "", percentual: 100, cpf: "" }]);
   const [meses, setMeses] = useState<MesesData>(empresa?.meses ?? createEmptyMeses());
 
@@ -70,6 +71,7 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
       nome,
       cnpj,
       dataAbertura,
+      regimeTributario,
       emiteNotaFiscal,
       socios,
       meses,
@@ -127,6 +129,18 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
             <div className="flex items-center gap-3 pt-6">
               <Switch checked={emiteNotaFiscal} onCheckedChange={setEmiteNotaFiscal} id="emite-nf" />
               <Label htmlFor="emite-nf">Emite Nota Fiscal</Label>
+            </div>
+            <div className="space-y-2">
+              <Label>Regime Tributário</Label>
+              <Select value={regimeTributario} onValueChange={(v) => setRegimeTributario(v as RegimeTributario)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="simples_nacional">Simples Nacional</SelectItem>
+                  <SelectItem value="lucro_presumido">Lucro Presumido</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
