@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useEmpresas } from "@/hooks/useEmpresas";
-import { Empresa, MesKey, MES_LABELS, StatusEntrega } from "@/types/fiscal";
+import { Empresa, MesKey, MES_LABELS, StatusEntrega, StatusExtrato } from "@/types/fiscal";
 import { DashboardSummary } from "@/components/DashboardSummary";
 import { EmpresaTable } from "@/components/EmpresaTable";
 import { EmpresaFormDialog } from "@/components/EmpresaFormDialog";
@@ -40,6 +40,20 @@ const Index = () => {
         obrigacoes: {
           ...empresa.obrigacoes,
           [mes]: { ...empresa.obrigacoes[mes], [campo]: valor },
+        },
+      });
+    },
+    [empresas, updateEmpresa]
+  );
+
+  const handleExtratoChange = useCallback(
+    (empresaId: string, mes: MesKey, valor: StatusExtrato) => {
+      const empresa = empresas.find((e) => e.id === empresaId);
+      if (!empresa) return;
+      updateEmpresa(empresaId, {
+        meses: {
+          ...empresa.meses,
+          [mes]: { ...empresa.meses[mes], extratoEnviado: valor },
         },
       });
     },
@@ -97,6 +111,7 @@ const Index = () => {
           onEdit={handleEdit}
           onDelete={deleteEmpresa}
           onStatusChange={handleStatusChange}
+          onExtratoChange={handleExtratoChange}
         />
       </main>
 

@@ -1,9 +1,10 @@
-import { Empresa, MesKey, MES_LABELS, StatusEntrega } from "@/types/fiscal";
+import { Empresa, MesKey, StatusEntrega, StatusExtrato } from "@/types/fiscal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { StatusBadge } from "@/components/StatusBadge";
+import { StatusBadge, ExtratoBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, FileText, FileX } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface EmpresaTableProps {
   empresas: Empresa[];
@@ -11,9 +12,10 @@ interface EmpresaTableProps {
   onEdit: (empresa: Empresa) => void;
   onDelete: (id: string) => void;
   onStatusChange: (empresaId: string, mes: MesKey, campo: keyof Empresa["obrigacoes"]["janeiro"], valor: StatusEntrega) => void;
+  onExtratoChange: (empresaId: string, mes: MesKey, valor: StatusExtrato) => void;
 }
 
-export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onStatusChange }: EmpresaTableProps) {
+export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onStatusChange, onExtratoChange }: EmpresaTableProps) {
   return (
     <div className="rounded-lg border bg-card">
       <Table>
@@ -21,8 +23,10 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
           <TableRow className="bg-primary/5 hover:bg-primary/5">
             <TableHead className="w-12">Nº</TableHead>
             <TableHead>Empresa</TableHead>
-            <TableHead>CNPJ</TableHead>
+            <TableHead className="w-10 text-center">NF</TableHead>
+            <TableHead className="text-center">Extrato</TableHead>
             <TableHead className="text-right">Faturamento</TableHead>
+            <TableHead className="text-right">Dist. Lucros</TableHead>
             <TableHead className="text-center">Lanç. Fiscal</TableHead>
             <TableHead className="text-center">REINF</TableHead>
             <TableHead className="text-center">DCTF Web</TableHead>
@@ -33,21 +37,45 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
         <TableBody>
           {empresas.length === 0 && (
             <TableRow>
-              <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
                 Nenhuma empresa cadastrada.
               </TableCell>
             </TableRow>
           )}
           {empresas.map((empresa) => {
             const ob = empresa.obrigacoes[mesSelecionado];
-            const fat = empresa.meses[mesSelecionado].faturamentoTotal;
+            const mes = empresa.meses[mesSelecionado];
             return (
               <TableRow key={empresa.id}>
                 <TableCell className="font-medium">{empresa.numero}</TableCell>
-                <TableCell className="font-medium max-w-[200px] truncate">{empresa.nome}</TableCell>
-                <TableCell className="font-mono text-xs">{empresa.cnpj}</TableCell>
+                <TableCell className="font-medium max-w-[180px] truncate">{empresa.nome}</TableCell>
+                <TableCell className="text-center">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        {empresa.emiteNotaFiscal ? (
+                          <FileText className="h-4 w-4 text-success mx-auto" />
+                        ) : (
+                          <FileX className="h-4 w-4 text-muted-foreground mx-auto" />
+                        )}
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {empresa.emiteNotaFiscal ? "Emite NF" : "Não emite NF"}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </TableCell>
+                <TableCell className="text-center">
+                  <ExtratoSelect
+                    value={mes.extratoEnviado}
+                    onChange={(v) => onExtratoChange(empresa.id, mesSelecionado, v)}
+                  />
+                </TableCell>
                 <TableCell className="text-right font-medium">
-                  {fat.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  {mes.faturamentoTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                </TableCell>
+                <TableCell className="text-right font-medium text-accent">
+                  {mes.distribuicaoLucros.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                 </TableCell>
                 {(["lancamentoFiscal", "reinf", "dcftWeb", "mit"] as const).map((campo) => (
                   <TableCell key={campo} className="text-center">
@@ -86,6 +114,21 @@ function StatusSelect({ value, onChange }: { value: StatusEntrega; onChange: (v:
         <SelectItem value="ok">✅ OK</SelectItem>
         <SelectItem value="pendente">❌ Pendente</SelectItem>
         <SelectItem value="nao_aplicavel">➖ N/A</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
+
+function ExtratoSelect({ value, onChange }: { value: StatusExtrato; onChange: (v: StatusExtrato) => void }) {
+  return (
+    <Select value={value} onValueChange={(v) => onChange(v as StatusExtrato)}>
+      <SelectTrigger className="h-8 w-[130px] mx-auto border-0 bg-transparent p-0 focus:ring-0 [&>svg]:ml-1">
+        <ExtratoBadge status={value} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="sim">✅ Enviado</SelectItem>
+        <SelectItem value="nao">❌ Não Enviado</SelectItem>
+        <SelectItem value="sem_faturamento">➖ Sem Faturamento</SelectItem>
       </SelectContent>
     </Select>
   );
