@@ -13,6 +13,7 @@ import {
 import { DashboardSummary } from "@/components/DashboardSummary";
 import { EmpresaTable } from "@/components/EmpresaTable";
 import { EmpresaFormDialog } from "@/components/EmpresaFormDialog";
+import { FaturamentoFormDialog } from "@/components/FaturamentoFormDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -53,6 +54,7 @@ const Index = () => {
   const [exteriorFilter, setExteriorFilter] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
+  const [faturamentoEmpresa, setFaturamentoEmpresa] = useState<Empresa | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; nome: string }>({ open: false, id: "", nome: "" });
 
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
@@ -98,6 +100,10 @@ const Index = () => {
   const handleNew = useCallback(() => {
     setEditingEmpresa(null);
     setFormOpen(true);
+  }, []);
+
+  const handleFaturamento = useCallback((empresa: Empresa) => {
+    setFaturamentoEmpresa(empresa);
   }, []);
 
   const handleStatusChange = useCallback(
@@ -228,6 +234,7 @@ const Index = () => {
           empresas={filtered}
           mesSelecionado={mesSelecionado}
           onEdit={handleEdit}
+          onFaturamento={handleFaturamento}
           onDelete={(id) => {
             const emp = empresas.find((e) => e.id === id);
             setDeleteConfirm({ open: true, id, nome: emp?.nome ?? "" });
@@ -269,6 +276,16 @@ const Index = () => {
         onSave={addEmpresa}
         onUpdate={updateEmpresa}
       />
+
+      {faturamentoEmpresa && (
+        <FaturamentoFormDialog
+          key={faturamentoEmpresa.id}
+          open={!!faturamentoEmpresa}
+          onOpenChange={(open) => { if (!open) setFaturamentoEmpresa(null); }}
+          empresa={faturamentoEmpresa}
+          onUpdate={updateEmpresa}
+        />
+      )}
     </div>
   );
 };

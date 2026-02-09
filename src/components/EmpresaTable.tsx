@@ -6,7 +6,7 @@ import { FaturamentoPopover } from "@/components/FaturamentoPopover";
 import { ReinfAlert } from "@/components/ReinfAlert";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Pencil, Trash2, FileText, FileX } from "lucide-react";
+import { Pencil, Trash2, FileText, FileX, DollarSign } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 
@@ -14,6 +14,7 @@ interface EmpresaTableProps {
   empresas: Empresa[];
   mesSelecionado: MesKey;
   onEdit: (empresa: Empresa) => void;
+  onFaturamento: (empresa: Empresa) => void;
   onDelete: (id: string) => void;
   onStatusChange: (empresaId: string, mesTrimestre: typeof MESES_FECHAMENTO_TRIMESTRE[number], campo: keyof Empresa["obrigacoes"]["marco"], valor: StatusEntrega) => void;
   onExtratoChange: (empresaId: string, mes: MesKey, valor: StatusExtrato) => void;
@@ -35,7 +36,7 @@ function calcularDistribuicaoTrimestral(empresa: Empresa, mesFechamento: MesKey)
   return totalFaturamento * 0.75;
 }
 
-export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onStatusChange, onExtratoChange, onMesFieldChange }: EmpresaTableProps) {
+export function EmpresaTable({ empresas, mesSelecionado, onEdit, onFaturamento, onDelete, onStatusChange, onExtratoChange, onMesFieldChange }: EmpresaTableProps) {
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
   const mesTrimestre = getMesFechamentoTrimestre(mesSelecionado);
   const isDctfPos = isMesDctfPosFechamento(mesSelecionado);
@@ -208,7 +209,10 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
                 )}
                 <TableCell>
                   <div className="flex items-center justify-center gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => onEdit(empresa)}>
+                    <Button variant="ghost" size="icon" onClick={() => onFaturamento(empresa)} title="Faturamento">
+                      <DollarSign className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => onEdit(empresa)} title="Editar">
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => onDelete(empresa.id)}>
