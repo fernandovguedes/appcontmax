@@ -182,6 +182,3 @@ const Index = () => {
 };
 
 export default Index;
-
-localStorage.clear();
-location.reload();
