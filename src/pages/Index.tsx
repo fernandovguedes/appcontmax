@@ -283,6 +283,7 @@ const Index = () => {
           open={!!faturamentoEmpresa}
           onOpenChange={(open) => { if (!open) setFaturamentoEmpresa(null); }}
           empresa={faturamentoEmpresa}
+          mesSelecionado={mesSelecionado}
           onUpdate={updateEmpresa}
         />
       )}
