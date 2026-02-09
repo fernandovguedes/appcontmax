@@ -24,7 +24,6 @@ export interface DadosMensais {
   faturamentoTotal: number;
   distribuicaoLucros: number;
   lancadoQuestor: StatusQuestor;
-  reinfPosFechamento?: StatusEntrega;
   dctfWebSemMovimento?: StatusEntrega;
 }
 
@@ -79,15 +78,8 @@ export function getMesesTrimestre(mesFechamento: MesKey): MesKey[] {
   }
 }
 
-// Meses pós-fechamento onde REINF pós-fechamento aparece
-export const MESES_POS_REINF: MesKey[] = ["abril", "julho", "outubro", "janeiro"];
-
-// Meses pós-fechamento onde DCTF Web sem movimento aparece
-export const MESES_POS_DCTF: MesKey[] = ["maio", "agosto", "novembro", "fevereiro"];
-
-export function isMesReinfPosFechamento(mes: MesKey): boolean {
-  return MESES_POS_REINF.includes(mes);
-}
+// Meses pós-fechamento onde DCTF Web sem movimento aparece (Abril, Julho, Outubro, Janeiro)
+export const MESES_POS_DCTF: MesKey[] = ["abril", "julho", "outubro", "janeiro"];
 
 export function isMesDctfPosFechamento(mes: MesKey): boolean {
   return MESES_POS_DCTF.includes(mes);
@@ -140,7 +132,7 @@ export interface Empresa {
 }
 
 // Calcula faturamento total e distribuição de lucros
-export function calcularFaturamento(dados: Omit<DadosMensais, "faturamentoTotal" | "distribuicaoLucros" | "lancadoQuestor" | "reinfPosFechamento" | "dctfWebSemMovimento"> & Partial<Pick<DadosMensais, "lancadoQuestor" | "reinfPosFechamento" | "dctfWebSemMovimento">>): DadosMensais {
+export function calcularFaturamento(dados: Omit<DadosMensais, "faturamentoTotal" | "distribuicaoLucros" | "lancadoQuestor" | "dctfWebSemMovimento"> & Partial<Pick<DadosMensais, "lancadoQuestor" | "dctfWebSemMovimento">>): DadosMensais {
   const faturamentoTotal = dados.faturamentoNacional + dados.faturamentoNotaFiscal + dados.faturamentoExterior;
   const distribuicaoLucros = faturamentoTotal * 0.75;
   return { ...dados, faturamentoTotal, distribuicaoLucros, lancadoQuestor: dados.lancadoQuestor ?? "pendente" };
