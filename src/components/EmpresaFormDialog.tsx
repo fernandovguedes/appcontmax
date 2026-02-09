@@ -13,7 +13,7 @@ interface EmpresaFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   empresa?: Empresa | null;
-  onSave: (data: Omit<Empresa, "id" | "numero" | "dataCadastro">) => void;
+  onSave: (data: Omit<Empresa, "id" | "dataCadastro">) => void;
   onUpdate: (id: string, data: Partial<Empresa>) => void;
 }
 
@@ -59,6 +59,7 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
   const isEditing = !!empresa;
 
   const [nome, setNome] = useState(empresa?.nome ?? "");
+  const [numero, setNumero] = useState<number | "">(empresa?.numero ?? "");
   const [cnpj, setCnpj] = useState(empresa?.cnpj ?? "");
   const [dataAbertura, setDataAbertura] = useState(empresa?.dataAbertura ?? "");
   const [emiteNotaFiscal, setEmiteNotaFiscal] = useState(empresa?.emiteNotaFiscal ?? true);
@@ -68,6 +69,7 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
 
   const handleSave = () => {
     const data = {
+      numero: typeof numero === "number" ? numero : 0,
       nome,
       cnpj,
       dataAbertura,
@@ -114,6 +116,10 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
 
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Número no Questor</Label>
+              <Input type="number" value={numero} onChange={(e) => setNumero(e.target.value ? Number(e.target.value) : "")} placeholder="Ex: 123" />
+            </div>
             <div className="space-y-2">
               <Label>Nome da Empresa</Label>
               <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Razão social" />
