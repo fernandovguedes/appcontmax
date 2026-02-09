@@ -1,13 +1,38 @@
 import { useState, useEffect, useCallback } from "react";
-import { Empresa } from "@/types/fiscal";
+import { Empresa, StatusExtrato } from "@/types/fiscal";
 import { SEED_DATA } from "@/data/seed";
 
 const STORAGE_KEY = "controle_fiscal_empresas";
 
+// Migra dados antigos para o novo formato
+function migrateEmpresa(empresa: any): Empresa {
+  const migrateMes = (mes: any) => ({
+    extratoEnviado: mes.extratoEnviado ?? (mes.recebimentoExtrato ? "sim" : "nao") as StatusExtrato,
+    faturamentoNacional: mes.faturamentoNacional ?? 0,
+    faturamentoNotaFiscal: mes.faturamentoNotaFiscal ?? 0,
+    faturamentoExterior: mes.faturamentoExterior ?? 0,
+    faturamentoTotal: mes.faturamentoTotal ?? 0,
+    distribuicaoLucros: mes.distribuicaoLucros ?? (mes.faturamentoTotal ?? 0) * 0.75,
+  });
+
+  return {
+    ...empresa,
+    emiteNotaFiscal: empresa.emiteNotaFiscal ?? true,
+    meses: {
+      janeiro: migrateMes(empresa.meses?.janeiro ?? {}),
+      fevereiro: migrateMes(empresa.meses?.fevereiro ?? {}),
+      marco: migrateMes(empresa.meses?.marco ?? {}),
+    },
+  };
+}
+
 function loadEmpresas(): Empresa[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return JSON.parse(stored);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.map(migrateEmpresa);
+    }
   } catch {}
   return SEED_DATA;
 }

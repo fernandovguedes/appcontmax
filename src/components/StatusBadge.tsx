@@ -35,7 +35,8 @@ const extratoConfig: Record<StatusExtrato, { label: string; icon: typeof CheckCi
 };
 
 export function ExtratoBadge({ status, className }: ExtratoBadgeProps) {
-  const { label, icon: Icon, colorClass } = extratoConfig[status];
+  const safeStatus = status && extratoConfig[status] ? status : "nao";
+  const { label, icon: Icon, colorClass } = extratoConfig[safeStatus];
   return (
     <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold", colorClass, className)}>
       <Icon className="h-3.5 w-3.5" />
