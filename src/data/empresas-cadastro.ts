@@ -27,6 +27,7 @@ const createEmptyObrigacoes = (): ObrigacoesData => ({
 function e(n: number, nome: string, cnpj: string, dt: string, nf: boolean, socios: Socio[]): Empresa {
   return {
     id: crypto.randomUUID(), numero: n, nome, cnpj, dataAbertura: dt,
+    dataCadastro: "2026-01-01",
     regimeTributario: "simples_nacional", emiteNotaFiscal: nf, socios,
     meses: createEmptyMeses(), obrigacoes: createEmptyObrigacoes(),
   };

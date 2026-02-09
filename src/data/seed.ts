@@ -70,6 +70,7 @@ function criarEmpresa(
     nome,
     cnpj,
     dataAbertura,
+    dataCadastro: "2026-01-01",
     regimeTributario: regime,
     emiteNotaFiscal,
     socios,

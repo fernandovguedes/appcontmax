@@ -13,7 +13,7 @@ interface EmpresaFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   empresa?: Empresa | null;
-  onSave: (data: Omit<Empresa, "id" | "numero">) => void;
+  onSave: (data: Omit<Empresa, "id" | "numero" | "dataCadastro">) => void;
   onUpdate: (id: string, data: Partial<Empresa>) => void;
 }
 
