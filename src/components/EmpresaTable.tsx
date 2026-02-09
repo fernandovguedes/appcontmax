@@ -127,6 +127,11 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
                         distribuicaoTotal={distribuicaoTrimestral}
                         label="Trimestral"
                         isTrimestral
+                        detalhesMensais={getMesesTrimestre(mesSelecionado).map(m => ({
+                          mes: m,
+                          faturamento: empresa.meses[m].faturamentoTotal,
+                          distribuicao: empresa.meses[m].faturamentoTotal * 0.75,
+                        }))}
                       />
                     </TableCell>
                     <TableCell className="text-center">

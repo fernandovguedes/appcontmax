@@ -1,18 +1,28 @@
-import { Socio, calcularDistribuicaoSocios } from "@/types/fiscal";
+import { Socio, calcularDistribuicaoSocios, MES_LABELS, MesKey } from "@/types/fiscal";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Users, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+interface DetalheMensal {
+  mes: MesKey;
+  faturamento: number;
+  distribuicao: number;
+}
 
 interface DistribuicaoSociosPopoverProps {
   socios: Socio[];
   distribuicaoTotal: number;
   label?: string;
   isTrimestral?: boolean;
+  detalhesMensais?: DetalheMensal[];
 }
 
 const LIMITE_ALERTA = 50000;
 
-export function DistribuicaoSociosPopover({ socios, distribuicaoTotal, label, isTrimestral }: DistribuicaoSociosPopoverProps) {
+const formatCurrency = (value: number) =>
+  value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+export function DistribuicaoSociosPopover({ socios, distribuicaoTotal, label, isTrimestral, detalhesMensais }: DistribuicaoSociosPopoverProps) {
   const sociosComDistribuicao = calcularDistribuicaoSocios(socios, distribuicaoTotal);
   const temAlerta = sociosComDistribuicao.some(s => (s.distribuicaoLucros ?? 0) > LIMITE_ALERTA);
 
@@ -26,7 +36,7 @@ export function DistribuicaoSociosPopover({ socios, distribuicaoTotal, label, is
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="sm" className={`h-auto p-1 gap-2 font-medium ${isTrimestral ? "text-primary" : "text-accent"} hover:text-accent`}>
-          {distribuicaoTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+          {formatCurrency(distribuicaoTotal)}
           {temAlerta ? (
             <AlertTriangle className="h-4 w-4 text-destructive" />
           ) : (
@@ -42,6 +52,27 @@ export function DistribuicaoSociosPopover({ socios, distribuicaoTotal, label, is
             </h4>
             <span className="text-xs text-muted-foreground">75% do faturamento</span>
           </div>
+
+          {/* Detalhamento mensal no trimestre */}
+          {isTrimestral && detalhesMensais && detalhesMensais.length > 0 && (
+            <div className="rounded-md border bg-muted/30 p-2 space-y-1">
+              <p className="text-xs font-medium text-muted-foreground mb-1">Detalhamento por mês</p>
+              {detalhesMensais.map((d) => (
+                <div key={d.mes} className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">{MES_LABELS[d.mes]}</span>
+                  <div className="flex gap-3">
+                    <span className="text-muted-foreground">Fat: {formatCurrency(d.faturamento)}</span>
+                    <span className="font-medium">{formatCurrency(d.distribuicao)}</span>
+                  </div>
+                </div>
+              ))}
+              <div className="flex items-center justify-between text-xs pt-1 border-t border-border/50">
+                <span className="font-medium">Total trimestre</span>
+                <span className="font-semibold text-primary">{formatCurrency(distribuicaoTotal)}</span>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
             {sociosComDistribuicao.map((socio, i) => {
               const valor = socio.distribuicaoLucros ?? 0;
@@ -57,7 +88,7 @@ export function DistribuicaoSociosPopover({ socios, distribuicaoTotal, label, is
                   </div>
                   <div className="text-right">
                     <p className={`text-sm font-semibold ${acima50k ? "text-destructive" : "text-foreground"}`}>
-                      {valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      {formatCurrency(valor)}
                     </p>
                     {acima50k && (
                       <p className="text-xs text-destructive flex items-center gap-1 justify-end">
@@ -72,7 +103,7 @@ export function DistribuicaoSociosPopover({ socios, distribuicaoTotal, label, is
           <div className="pt-2 border-t flex justify-between text-sm">
             <span className="text-muted-foreground">Total {isTrimestral ? "trimestral" : "distribuído"}:</span>
             <span className={`font-semibold ${isTrimestral ? "text-primary" : "text-accent"}`}>
-              {distribuicaoTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+              {formatCurrency(distribuicaoTotal)}
             </span>
           </div>
         </div>
