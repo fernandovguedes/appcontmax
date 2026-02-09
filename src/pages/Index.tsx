@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Filter, LogOut, Download, AlertTriangle } from "lucide-react";
+import { Plus, Search, Filter, LogOut, Download, AlertTriangle, FileText } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { isMesFechamentoTrimestre, getMesesTrimestre, calcularFaturamentoTrimestre } from "@/types/fiscal";
 import { exportToExcel } from "@/lib/exportExcel";
@@ -30,6 +30,7 @@ const Index = () => {
   const [search, setSearch] = useState("");
   const [regimeFilter, setRegimeFilter] = useState<RegimeTributario | "todos">("todos");
   const [reinfFilter, setReinfFilter] = useState(false);
+  const [nfExteriorFilter, setNfExteriorFilter] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
 
@@ -73,7 +74,14 @@ const Index = () => {
       matchesReinf = fatTrimestre > 0;
     }
 
-    return matchesSearch && matchesRegime && matchesMes && matchesReinf;
+    // Filtro NF/Exterior: empresas com faturamento de NF ou Exterior no mês
+    let matchesNfExterior = true;
+    if (nfExteriorFilter) {
+      const dados = e.meses[mesSelecionado];
+      matchesNfExterior = dados.faturamentoNotaFiscal > 0 || dados.faturamentoExterior > 0;
+    }
+
+    return matchesSearch && matchesRegime && matchesMes && matchesReinf && matchesNfExterior;
   });
 
   const handleEdit = useCallback((empresa: Empresa) => {
@@ -156,6 +164,11 @@ const Index = () => {
             </TabsList>
           </Tabs>
           <div className="flex items-center gap-2 flex-wrap">
+            <label className="flex items-center gap-1.5 text-sm cursor-pointer border rounded-md px-3 py-1.5 bg-card hover:bg-muted/50 transition-colors">
+              <Checkbox checked={nfExteriorFilter} onCheckedChange={(v) => setNfExteriorFilter(!!v)} />
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-muted-foreground">NF / Exterior</span>
+            </label>
             {isFechamento && (
               <label className="flex items-center gap-1.5 text-sm cursor-pointer border rounded-md px-3 py-1.5 bg-card hover:bg-muted/50 transition-colors">
                 <Checkbox checked={reinfFilter} onCheckedChange={(v) => setReinfFilter(!!v)} />
