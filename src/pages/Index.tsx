@@ -30,7 +30,8 @@ const Index = () => {
   const [search, setSearch] = useState("");
   const [regimeFilter, setRegimeFilter] = useState<RegimeTributario | "todos">("todos");
   const [reinfFilter, setReinfFilter] = useState(false);
-  const [nfExteriorFilter, setNfExteriorFilter] = useState(false);
+  const [nfFilter, setNfFilter] = useState(false);
+  const [exteriorFilter, setExteriorFilter] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
 
@@ -76,9 +77,11 @@ const Index = () => {
 
     // Filtro NF/Exterior: empresas com faturamento de NF ou Exterior no mês
     let matchesNfExterior = true;
-    if (nfExteriorFilter) {
+    if (nfFilter || exteriorFilter) {
       const dados = e.meses[mesSelecionado];
-      matchesNfExterior = dados.faturamentoNotaFiscal > 0 || dados.faturamentoExterior > 0;
+      const passNf = !nfFilter || dados.faturamentoNotaFiscal > 0;
+      const passExt = !exteriorFilter || dados.faturamentoExterior > 0;
+      matchesNfExterior = passNf && passExt;
     }
 
     return matchesSearch && matchesRegime && matchesMes && matchesReinf && matchesNfExterior;
@@ -165,9 +168,14 @@ const Index = () => {
           </Tabs>
           <div className="flex items-center gap-2 flex-wrap">
             <label className="flex items-center gap-1.5 text-sm cursor-pointer border rounded-md px-3 py-1.5 bg-card hover:bg-muted/50 transition-colors">
-              <Checkbox checked={nfExteriorFilter} onCheckedChange={(v) => setNfExteriorFilter(!!v)} />
+              <Checkbox checked={nfFilter} onCheckedChange={(v) => setNfFilter(!!v)} />
               <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-muted-foreground">NF / Exterior</span>
+              <span className="text-muted-foreground">Nota Fiscal</span>
+            </label>
+            <label className="flex items-center gap-1.5 text-sm cursor-pointer border rounded-md px-3 py-1.5 bg-card hover:bg-muted/50 transition-colors">
+              <Checkbox checked={exteriorFilter} onCheckedChange={(v) => setExteriorFilter(!!v)} />
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-muted-foreground">Exterior</span>
             </label>
             {isFechamento && (
               <label className="flex items-center gap-1.5 text-sm cursor-pointer border rounded-md px-3 py-1.5 bg-card hover:bg-muted/50 transition-colors">
