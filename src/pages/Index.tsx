@@ -31,7 +31,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { isMesFechamentoTrimestre, getMesesTrimestre, calcularFaturamentoTrimestre } from "@/types/fiscal";
+import { isMesFechamentoTrimestre, getMesesTrimestre, calcularFaturamentoTrimestre, isMesDctfPosFechamento, getTrimestreFechamentoAnterior } from "@/types/fiscal";
 import { exportToExcel } from "@/lib/exportExcel";
 import logo from "@/assets/logo_contmax.png";
 
@@ -52,12 +52,15 @@ const Index = () => {
   const [reinfFilter, setReinfFilter] = useState(false);
   const [nfFilter, setNfFilter] = useState(false);
   const [exteriorFilter, setExteriorFilter] = useState(false);
+  const [dctfSmFilter, setDctfSmFilter] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
   const [faturamentoEmpresa, setFaturamentoEmpresa] = useState<Empresa | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; nome: string }>({ open: false, id: "", nome: "" });
 
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
+  const isDctfPos = isMesDctfPosFechamento(mesSelecionado);
+  const trimestreAnterior = getTrimestreFechamentoAnterior(mesSelecionado);
 
   const filtered = empresas.filter((e) => {
     const matchesSearch = e.nome.toLowerCase().includes(search.toLowerCase()) || e.cnpj.includes(search);
@@ -89,7 +92,13 @@ const Index = () => {
       matchesNfExterior = passNf && passExt;
     }
 
-    return matchesSearch && matchesRegime && matchesMes && matchesReinf && matchesNfExterior;
+    let matchesDctfSm = true;
+    if (dctfSmFilter && isDctfPos && trimestreAnterior) {
+      const fatTrimAnterior = calcularFaturamentoTrimestre(e, trimestreAnterior);
+      matchesDctfSm = fatTrimAnterior > 0;
+    }
+
+    return matchesSearch && matchesRegime && matchesMes && matchesReinf && matchesNfExterior && matchesDctfSm;
   });
 
   const handleEdit = useCallback((empresa: Empresa) => {
@@ -205,6 +214,13 @@ const Index = () => {
                 <Checkbox checked={reinfFilter} onCheckedChange={(v) => setReinfFilter(!!v)} />
                 <AlertTriangle className="h-3.5 w-3.5 text-accent" />
                 <span className="text-muted-foreground">REINF obrigatória</span>
+              </label>
+            )}
+            {isDctfPos && (
+              <label className="flex items-center gap-1.5 text-sm cursor-pointer border rounded-md px-3 py-1.5 bg-card hover:bg-muted/50 transition-colors">
+                <Checkbox checked={dctfSmFilter} onCheckedChange={(v) => setDctfSmFilter(!!v)} />
+                <FileText className="h-3.5 w-3.5 text-accent" />
+                <span className="text-muted-foreground">DCTF S/Mov</span>
               </label>
             )}
             <Select value={regimeFilter} onValueChange={(v) => setRegimeFilter(v as RegimeTributario | "todos")}>
