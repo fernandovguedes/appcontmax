@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Empresa, StatusExtrato, MesesData, ObrigacoesData } from "@/types/fiscal";
-import { SEED_DATA } from "@/data/seed";
-
-const STORAGE_KEY = "controle_fiscal_empresas";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const emptyMes = () => ({
   extratoEnviado: "nao" as StatusExtrato,
@@ -20,95 +19,106 @@ const emptyObrigacoes = () => ({
   mit: "pendente" as const,
 });
 
-// Migra dados antigos para o novo formato com 12 meses
-function migrateEmpresa(empresa: any): Empresa {
-  const migrateMes = (mes: any) => ({
-    extratoEnviado: mes?.extratoEnviado ?? (mes?.recebimentoExtrato ? "sim" : "nao") as StatusExtrato,
-    faturamentoNacional: mes?.faturamentoNacional ?? 0,
-    faturamentoNotaFiscal: mes?.faturamentoNotaFiscal ?? 0,
-    faturamentoExterior: mes?.faturamentoExterior ?? 0,
-    faturamentoTotal: mes?.faturamentoTotal ?? 0,
-    distribuicaoLucros: mes?.distribuicaoLucros ?? (mes?.faturamentoTotal ?? 0) * 0.75,
-  });
+const createEmptyMeses = (): MesesData => ({
+  janeiro: emptyMes(), fevereiro: emptyMes(), marco: emptyMes(),
+  abril: emptyMes(), maio: emptyMes(), junho: emptyMes(),
+  julho: emptyMes(), agosto: emptyMes(), setembro: emptyMes(),
+  outubro: emptyMes(), novembro: emptyMes(), dezembro: emptyMes(),
+});
 
-  const oldMeses = empresa.meses ?? {};
-  const meses: MesesData = {
-    janeiro: migrateMes(oldMeses.janeiro),
-    fevereiro: migrateMes(oldMeses.fevereiro),
-    marco: migrateMes(oldMeses.marco),
-    abril: migrateMes(oldMeses.abril),
-    maio: migrateMes(oldMeses.maio),
-    junho: migrateMes(oldMeses.junho),
-    julho: migrateMes(oldMeses.julho),
-    agosto: migrateMes(oldMeses.agosto),
-    setembro: migrateMes(oldMeses.setembro),
-    outubro: migrateMes(oldMeses.outubro),
-    novembro: migrateMes(oldMeses.novembro),
-    dezembro: migrateMes(oldMeses.dezembro),
-  };
+const createEmptyObrigacoes = (): ObrigacoesData => ({
+  marco: emptyObrigacoes(), junho: emptyObrigacoes(),
+  setembro: emptyObrigacoes(), dezembro: emptyObrigacoes(),
+});
 
-  const oldObrigacoes = empresa.obrigacoes ?? {};
-  const obrigacoes: ObrigacoesData = {
-    marco: oldObrigacoes.marco ?? oldObrigacoes.janeiro ?? emptyObrigacoes(),
-    junho: oldObrigacoes.junho ?? emptyObrigacoes(),
-    setembro: oldObrigacoes.setembro ?? emptyObrigacoes(),
-    dezembro: oldObrigacoes.dezembro ?? emptyObrigacoes(),
-  };
-
+// Convert DB row to Empresa
+function rowToEmpresa(row: any): Empresa {
   return {
-    ...empresa,
-    regimeTributario: empresa.regimeTributario ?? "simples_nacional",
-    emiteNotaFiscal: empresa.emiteNotaFiscal ?? true,
-    dataCadastro: empresa.dataCadastro ?? "2026-01-01",
-    meses,
-    obrigacoes,
+    id: row.id,
+    numero: row.numero,
+    nome: row.nome,
+    cnpj: row.cnpj,
+    dataAbertura: row.data_abertura ?? "",
+    dataCadastro: row.data_cadastro,
+    regimeTributario: row.regime_tributario,
+    emiteNotaFiscal: row.emite_nota_fiscal,
+    socios: row.socios ?? [],
+    meses: row.meses ?? createEmptyMeses(),
+    obrigacoes: row.obrigacoes ?? createEmptyObrigacoes(),
   };
 }
 
-function loadEmpresas(): Empresa[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed.map(migrateEmpresa);
-    }
-  } catch {}
-  return SEED_DATA;
-}
-
-function saveEmpresas(empresas: Empresa[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(empresas));
+// Convert Empresa to DB row fields
+function empresaToRow(empresa: Partial<Empresa>) {
+  const row: Record<string, any> = {};
+  if (empresa.nome !== undefined) row.nome = empresa.nome;
+  if (empresa.cnpj !== undefined) row.cnpj = empresa.cnpj;
+  if (empresa.dataAbertura !== undefined) row.data_abertura = empresa.dataAbertura;
+  if (empresa.dataCadastro !== undefined) row.data_cadastro = empresa.dataCadastro;
+  if (empresa.regimeTributario !== undefined) row.regime_tributario = empresa.regimeTributario;
+  if (empresa.emiteNotaFiscal !== undefined) row.emite_nota_fiscal = empresa.emiteNotaFiscal;
+  if (empresa.socios !== undefined) row.socios = empresa.socios;
+  if (empresa.meses !== undefined) row.meses = empresa.meses;
+  if (empresa.obrigacoes !== undefined) row.obrigacoes = empresa.obrigacoes;
+  return row;
 }
 
 export function useEmpresas() {
-  const [empresas, setEmpresas] = useState<Empresa[]>(loadEmpresas);
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  const fetchEmpresas = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("empresas")
+      .select("*")
+      .order("numero", { ascending: true });
+
+    if (error) {
+      toast({ title: "Erro ao carregar empresas", description: error.message, variant: "destructive" });
+      return;
+    }
+    setEmpresas((data ?? []).map(rowToEmpresa));
+    setLoading(false);
+  }, [toast]);
 
   useEffect(() => {
-    saveEmpresas(empresas);
-  }, [empresas]);
+    fetchEmpresas();
+  }, [fetchEmpresas]);
 
-  const addEmpresa = useCallback((empresa: Omit<Empresa, "id" | "numero" | "dataCadastro">) => {
-    setEmpresas((prev) => {
-      const maxNum = prev.reduce((max, e) => Math.max(max, e.numero), 0);
-      const newEmpresa: Empresa = {
-        ...empresa,
-        id: crypto.randomUUID(),
-        numero: maxNum + 1,
-        dataCadastro: new Date().toISOString().split("T")[0],
-      };
-      return [...prev, newEmpresa];
+  const addEmpresa = useCallback(async (empresa: Omit<Empresa, "id" | "numero" | "dataCadastro">) => {
+    const row = empresaToRow({
+      ...empresa,
+      dataCadastro: new Date().toISOString().split("T")[0],
     });
-  }, []);
 
-  const updateEmpresa = useCallback((id: string, updates: Partial<Empresa>) => {
-    setEmpresas((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, ...updates } : e))
-    );
-  }, []);
+    const { error } = await supabase.from("empresas").insert(row as any);
+    if (error) {
+      toast({ title: "Erro ao adicionar empresa", description: error.message, variant: "destructive" });
+      return;
+    }
+    fetchEmpresas();
+  }, [fetchEmpresas, toast]);
 
-  const deleteEmpresa = useCallback((id: string) => {
+  const updateEmpresa = useCallback(async (id: string, updates: Partial<Empresa>) => {
+    const row = empresaToRow(updates);
+    const { error } = await supabase.from("empresas").update(row).eq("id", id);
+    if (error) {
+      toast({ title: "Erro ao atualizar empresa", description: error.message, variant: "destructive" });
+      return;
+    }
+    // Optimistic update
+    setEmpresas((prev) => prev.map((e) => (e.id === id ? { ...e, ...updates } : e)));
+  }, [toast]);
+
+  const deleteEmpresa = useCallback(async (id: string) => {
+    const { error } = await supabase.from("empresas").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Erro ao deletar empresa", description: error.message, variant: "destructive" });
+      return;
+    }
     setEmpresas((prev) => prev.filter((e) => e.id !== id));
-  }, []);
+  }, [toast]);
 
-  return { empresas, addEmpresa, updateEmpresa, deleteEmpresa, setEmpresas };
+  return { empresas, loading, addEmpresa, updateEmpresa, deleteEmpresa, setEmpresas, refetch: fetchEmpresas };
 }

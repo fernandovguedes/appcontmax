@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { useEmpresas } from "@/hooks/useEmpresas";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Empresa,
   MesKey,
@@ -16,10 +17,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Filter } from "lucide-react";
+import { Plus, Search, Filter, LogOut } from "lucide-react";
 
 const Index = () => {
-  const { empresas, addEmpresa, updateEmpresa, deleteEmpresa } = useEmpresas();
+  const { empresas, loading, addEmpresa, updateEmpresa, deleteEmpresa } = useEmpresas();
+  const { signOut } = useAuth();
   const [mesSelecionado, setMesSelecionado] = useState<MesKey>("janeiro");
   const [search, setSearch] = useState("");
   const [regimeFilter, setRegimeFilter] = useState<RegimeTributario | "todos">("todos");
@@ -112,9 +114,14 @@ const Index = () => {
               <p className="text-xs text-muted-foreground">Simples Nacional · 2026</p>
             </div>
           </div>
-          <Button onClick={handleNew} className="bg-accent text-accent-foreground hover:bg-accent/90">
-            <Plus className="mr-1 h-4 w-4" /> Nova Empresa
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleNew} className="bg-accent text-accent-foreground hover:bg-accent/90">
+              <Plus className="mr-1 h-4 w-4" /> Nova Empresa
+            </Button>
+            <Button variant="ghost" size="icon" onClick={signOut} title="Sair">
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </header>
 
