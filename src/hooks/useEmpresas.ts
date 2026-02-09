@@ -159,11 +159,12 @@ export function useEmpresas() {
     fetchEmpresas();
   }, [fetchEmpresas]);
 
-  const addEmpresa = useCallback(async (empresa: Omit<Empresa, "id" | "numero" | "dataCadastro">) => {
+  const addEmpresa = useCallback(async (empresa: Omit<Empresa, "id" | "dataCadastro">) => {
     const row = empresaToRow({
       ...empresa,
       dataCadastro: new Date().toISOString().split("T")[0],
     });
+    if (empresa.numero) row.numero = empresa.numero;
     const { error } = await supabase.from("empresas").insert(row as any);
     if (error) {
       toast({ title: "Erro ao adicionar empresa", description: error.message, variant: "destructive" });
