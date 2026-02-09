@@ -18,6 +18,16 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Filter, LogOut, Download, AlertTriangle, FileText } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { isMesFechamentoTrimestre, getMesesTrimestre, calcularFaturamentoTrimestre } from "@/types/fiscal";
 import { exportToExcel } from "@/lib/exportExcel";
@@ -34,6 +44,7 @@ const Index = () => {
   const [exteriorFilter, setExteriorFilter] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; nome: string }>({ open: false, id: "", nome: "" });
 
   const MES_INDEX: Record<MesKey, number> = {
     janeiro: 0,
@@ -212,11 +223,38 @@ const Index = () => {
           empresas={filtered}
           mesSelecionado={mesSelecionado}
           onEdit={handleEdit}
-          onDelete={deleteEmpresa}
+          onDelete={(id) => {
+            const emp = empresas.find((e) => e.id === id);
+            setDeleteConfirm({ open: true, id, nome: emp?.nome ?? "" });
+          }}
           onStatusChange={handleStatusChange}
           onExtratoChange={handleExtratoChange}
         />
       </main>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteConfirm.open} onOpenChange={(open) => setDeleteConfirm((prev) => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir a empresa <strong>{deleteConfirm.nome}</strong>? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                deleteEmpresa(deleteConfirm.id);
+                setDeleteConfirm({ open: false, id: "", nome: "" });
+              }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Form Dialog */}
       <EmpresaFormDialog
