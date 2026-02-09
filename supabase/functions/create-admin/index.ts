@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { email, password } = await req.json();
+    const { email, password, nome } = await req.json();
 
     if (!email || !password) {
       return new Response(
@@ -30,6 +30,7 @@ serve(async (req) => {
       email,
       password,
       email_confirm: true,
+      user_metadata: { nome: nome || "" },
     });
 
     if (error) {
