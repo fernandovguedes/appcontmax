@@ -27,14 +27,14 @@ const Index = () => {
     const matchesSearch = e.nome.toLowerCase().includes(search.toLowerCase()) || e.cnpj.includes(search);
     const matchesRegime = regimeFilter === "todos" || e.regimeTributario === regimeFilter;
 
-    // Filtrar por data de abertura: só mostrar em meses >= mês de abertura no mesmo ano
+    // Filtrar por data de cadastro no sistema
     let matchesMes = true;
-    if (e.dataAbertura) {
-      const abertura = new Date(e.dataAbertura);
-      const anoAtual = 2026; // ano do sistema
-      if (abertura.getFullYear() === anoAtual) {
-        matchesMes = MES_INDEX[mesSelecionado] >= abertura.getMonth();
-      } else if (abertura.getFullYear() > anoAtual) {
+    if (e.dataCadastro) {
+      const cadastro = new Date(e.dataCadastro);
+      const anoAtual = 2026;
+      if (cadastro.getFullYear() === anoAtual) {
+        matchesMes = MES_INDEX[mesSelecionado] >= cadastro.getMonth();
+      } else if (cadastro.getFullYear() > anoAtual) {
         matchesMes = false;
       }
     }

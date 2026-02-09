@@ -103,6 +103,7 @@ export interface Empresa {
   nome: string;
   cnpj: string;
   dataAbertura: string;
+  dataCadastro: string; // ISO date de quando foi cadastrada no sistema
   regimeTributario: RegimeTributario;
   emiteNotaFiscal: boolean;
   socios: Socio[];

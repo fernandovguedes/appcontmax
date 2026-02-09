@@ -59,6 +59,7 @@ function migrateEmpresa(empresa: any): Empresa {
     ...empresa,
     regimeTributario: empresa.regimeTributario ?? "simples_nacional",
     emiteNotaFiscal: empresa.emiteNotaFiscal ?? true,
+    dataCadastro: empresa.dataCadastro ?? "2026-01-01",
     meses,
     obrigacoes,
   };
@@ -86,13 +87,14 @@ export function useEmpresas() {
     saveEmpresas(empresas);
   }, [empresas]);
 
-  const addEmpresa = useCallback((empresa: Omit<Empresa, "id" | "numero">) => {
+  const addEmpresa = useCallback((empresa: Omit<Empresa, "id" | "numero" | "dataCadastro">) => {
     setEmpresas((prev) => {
       const maxNum = prev.reduce((max, e) => Math.max(max, e.numero), 0);
       const newEmpresa: Empresa = {
         ...empresa,
         id: crypto.randomUUID(),
         numero: maxNum + 1,
+        dataCadastro: new Date().toISOString().split("T")[0],
       };
       return [...prev, newEmpresa];
     });
