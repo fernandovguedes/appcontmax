@@ -1,3 +1,10 @@
+export type RegimeTributario = "simples_nacional" | "lucro_presumido";
+
+export const REGIME_LABELS: Record<RegimeTributario, string> = {
+  simples_nacional: "Simples Nacional",
+  lucro_presumido: "Lucro Presumido",
+};
+
 export interface Socio {
   nome: string;
   percentual: number;
@@ -96,6 +103,7 @@ export interface Empresa {
   nome: string;
   cnpj: string;
   dataAbertura: string;
+  regimeTributario: RegimeTributario;
   emiteNotaFiscal: boolean;
   socios: Socio[];
   meses: MesesData;

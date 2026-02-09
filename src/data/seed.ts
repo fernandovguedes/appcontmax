@@ -1,4 +1,5 @@
-import { Empresa, StatusExtrato, MesesData, ObrigacoesData, Socio, DadosMensais, ControleObrigacoes } from "@/types/fiscal";
+import { Empresa, StatusExtrato, MesesData, ObrigacoesData, Socio, DadosMensais, ControleObrigacoes, RegimeTributario } from "@/types/fiscal";
+import { EMPRESAS_EXTRAS } from "./empresas-cadastro";
 
 const emptyMes = (): DadosMensais => ({
   extratoEnviado: "nao" as StatusExtrato,
@@ -48,7 +49,8 @@ function criarEmpresa(
   socios: Socio[],
   janeiro?: Partial<DadosMensais>,
   fevereiro?: Partial<DadosMensais>,
-  marco?: Partial<DadosMensais>
+  marco?: Partial<DadosMensais>,
+  regime: import("@/types/fiscal").RegimeTributario = "simples_nacional"
 ): Empresa {
   const meses = createEmptyMeses();
   
@@ -68,6 +70,7 @@ function criarEmpresa(
     nome,
     cnpj,
     dataAbertura,
+    regimeTributario: regime,
     emiteNotaFiscal,
     socios,
     meses,

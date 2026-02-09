@@ -57,6 +57,7 @@ function migrateEmpresa(empresa: any): Empresa {
 
   return {
     ...empresa,
+    regimeTributario: empresa.regimeTributario ?? "simples_nacional",
     emiteNotaFiscal: empresa.emiteNotaFiscal ?? true,
     meses,
     obrigacoes,

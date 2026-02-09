@@ -1,4 +1,4 @@
-import { Empresa, MesKey, StatusEntrega, StatusExtrato, calcularDistribuicaoSocios, isMesFechamentoTrimestre, MESES_FECHAMENTO_TRIMESTRE } from "@/types/fiscal";
+import { Empresa, MesKey, StatusEntrega, StatusExtrato, calcularDistribuicaoSocios, isMesFechamentoTrimestre, MESES_FECHAMENTO_TRIMESTRE, getMesesTrimestre, REGIME_LABELS } from "@/types/fiscal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge, ExtratoBadge } from "@/components/StatusBadge";
 import { DistribuicaoSociosPopover } from "@/components/DistribuicaoSociosPopover";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Pencil, Trash2, FileText, FileX } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 
 interface EmpresaTableProps {
   empresas: Empresa[];
@@ -19,12 +20,17 @@ interface EmpresaTableProps {
 
 const LIMITE_DISTRIBUICAO_SOCIO = 50000;
 
-// Mapeia qualquer mês para o mês de fechamento do trimestre correspondente
 function getMesFechamentoTrimestre(mes: MesKey): typeof MESES_FECHAMENTO_TRIMESTRE[number] {
   if (["janeiro", "fevereiro", "marco"].includes(mes)) return "marco";
   if (["abril", "maio", "junho"].includes(mes)) return "junho";
   if (["julho", "agosto", "setembro"].includes(mes)) return "setembro";
   return "dezembro";
+}
+
+function calcularDistribuicaoTrimestral(empresa: Empresa, mesFechamento: MesKey): number {
+  const meses = getMesesTrimestre(mesFechamento);
+  const totalFaturamento = meses.reduce((sum, m) => sum + empresa.meses[m].faturamentoTotal, 0);
+  return totalFaturamento * 0.75;
 }
 
 export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onStatusChange, onExtratoChange }: EmpresaTableProps) {
@@ -38,12 +44,14 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
           <TableRow className="bg-primary/5 hover:bg-primary/5">
             <TableHead className="w-12">Nº</TableHead>
             <TableHead>Empresa</TableHead>
+            <TableHead className="w-20 text-center">Regime</TableHead>
             <TableHead className="w-10 text-center">NF</TableHead>
             <TableHead className="text-center">Extrato</TableHead>
             <TableHead className="text-right">Faturamento</TableHead>
             <TableHead className="text-right">Dist. Lucros</TableHead>
             {isFechamento && (
               <>
+                <TableHead className="text-right">Dist. Trimestral</TableHead>
                 <TableHead className="text-center">Lanç. Fiscal</TableHead>
                 <TableHead className="text-center">REINF</TableHead>
                 <TableHead className="text-center">DCTF Web</TableHead>
@@ -56,7 +64,7 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
         <TableBody>
           {empresas.length === 0 && (
             <TableRow>
-              <TableCell colSpan={isFechamento ? 11 : 7} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={isFechamento ? 13 : 8} className="h-24 text-center text-muted-foreground">
                 Nenhuma empresa cadastrada.
               </TableCell>
             </TableRow>
@@ -66,10 +74,19 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
             const sociosComDistribuicao = calcularDistribuicaoSocios(empresa.socios, mes.distribuicaoLucros);
             const temAlerta = sociosComDistribuicao.some(s => (s.distribuicaoLucros ?? 0) > LIMITE_DISTRIBUICAO_SOCIO);
 
+            const distribuicaoTrimestral = isFechamento ? calcularDistribuicaoTrimestral(empresa, mesSelecionado) : 0;
+            const sociosTrimestrais = isFechamento ? calcularDistribuicaoSocios(empresa.socios, distribuicaoTrimestral) : [];
+            const temAlertaTrimestral = sociosTrimestrais.some(s => (s.distribuicaoLucros ?? 0) > LIMITE_DISTRIBUICAO_SOCIO);
+
             return (
-              <TableRow key={empresa.id} className={temAlerta ? "bg-destructive/5" : ""}>
+              <TableRow key={empresa.id} className={temAlerta || temAlertaTrimestral ? "bg-destructive/5" : ""}>
                 <TableCell className="font-medium">{empresa.numero}</TableCell>
                 <TableCell className="font-medium max-w-[180px] truncate">{empresa.nome}</TableCell>
+                <TableCell className="text-center">
+                  <Badge variant={empresa.regimeTributario === "simples_nacional" ? "secondary" : "outline"} className="text-[10px] px-1.5">
+                    {empresa.regimeTributario === "simples_nacional" ? "SN" : "LP"}
+                  </Badge>
+                </TableCell>
                 <TableCell className="text-center">
                   <TooltipProvider>
                     <Tooltip>
@@ -98,11 +115,20 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
                 <TableCell className="text-right">
                   <DistribuicaoSociosPopover 
                     socios={empresa.socios} 
-                    distribuicaoTotal={mes.distribuicaoLucros} 
+                    distribuicaoTotal={mes.distribuicaoLucros}
+                    label="Mensal"
                   />
                 </TableCell>
                 {isFechamento && (
                   <>
+                    <TableCell className="text-right">
+                      <DistribuicaoSociosPopover 
+                        socios={empresa.socios} 
+                        distribuicaoTotal={distribuicaoTrimestral}
+                        label="Trimestral"
+                        isTrimestral
+                      />
+                    </TableCell>
                     <TableCell className="text-center">
                       <StatusSelect
                         value={empresa.obrigacoes[mesTrimestre].lancamentoFiscal}
