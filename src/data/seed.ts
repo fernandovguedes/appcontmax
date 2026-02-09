@@ -525,4 +525,5 @@ export const SEED_DATA: Empresa[] = [
   criarEmpresa(1172, "MUN RA CONSULTORIA LTDA", "64.719.382/0001-90", "2026-01-26", false, 
     [{ nome: "FRANCISCO CORREA DE TATAGIBA JUNIOR", percentual: 100, cpf: "163.532.997-37" }],
     { extratoEnviado: "sim", faturamentoNacional: 2080.00, faturamentoTotal: 2080.00, distribuicaoLucros: 1560.00 }),
+  ...EMPRESAS_EXTRAS,
 ];
