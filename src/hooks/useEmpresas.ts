@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { Empresa, StatusExtrato, MesesData, ObrigacoesData } from "@/types/fiscal";
+import { Empresa, StatusExtrato, MesesData, ObrigacoesData, DadosMensais, ControleObrigacoes } from "@/types/fiscal";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-const emptyMes = () => ({
+const emptyMes = (): DadosMensais => ({
   extratoEnviado: "nao" as StatusExtrato,
   faturamentoNacional: 0,
   faturamentoNotaFiscal: 0,
@@ -12,7 +12,7 @@ const emptyMes = () => ({
   distribuicaoLucros: 0,
 });
 
-const emptyObrigacoes = () => ({
+const emptyObrigacoes = (): ControleObrigacoes => ({
   lancamentoFiscal: "pendente" as const,
   reinf: "pendente" as const,
   dcftWeb: "pendente" as const,
@@ -31,8 +31,12 @@ const createEmptyObrigacoes = (): ObrigacoesData => ({
   setembro: emptyObrigacoes(), dezembro: emptyObrigacoes(),
 });
 
-// Convert DB row to Empresa
 function rowToEmpresa(row: any): Empresa {
+  const defaultMeses = createEmptyMeses();
+  const defaultObrigacoes = createEmptyObrigacoes();
+  const rawMeses = row.meses ?? {};
+  const rawObrigacoes = row.obrigacoes ?? {};
+
   return {
     id: row.id,
     numero: row.numero,
@@ -43,12 +47,29 @@ function rowToEmpresa(row: any): Empresa {
     regimeTributario: row.regime_tributario,
     emiteNotaFiscal: row.emite_nota_fiscal,
     socios: row.socios ?? [],
-    meses: row.meses ?? createEmptyMeses(),
-    obrigacoes: row.obrigacoes ?? createEmptyObrigacoes(),
+    meses: {
+      janeiro: { ...defaultMeses.janeiro, ...rawMeses.janeiro },
+      fevereiro: { ...defaultMeses.fevereiro, ...rawMeses.fevereiro },
+      marco: { ...defaultMeses.marco, ...rawMeses.marco },
+      abril: { ...defaultMeses.abril, ...rawMeses.abril },
+      maio: { ...defaultMeses.maio, ...rawMeses.maio },
+      junho: { ...defaultMeses.junho, ...rawMeses.junho },
+      julho: { ...defaultMeses.julho, ...rawMeses.julho },
+      agosto: { ...defaultMeses.agosto, ...rawMeses.agosto },
+      setembro: { ...defaultMeses.setembro, ...rawMeses.setembro },
+      outubro: { ...defaultMeses.outubro, ...rawMeses.outubro },
+      novembro: { ...defaultMeses.novembro, ...rawMeses.novembro },
+      dezembro: { ...defaultMeses.dezembro, ...rawMeses.dezembro },
+    },
+    obrigacoes: {
+      marco: { ...defaultObrigacoes.marco, ...rawObrigacoes.marco },
+      junho: { ...defaultObrigacoes.junho, ...rawObrigacoes.junho },
+      setembro: { ...defaultObrigacoes.setembro, ...rawObrigacoes.setembro },
+      dezembro: { ...defaultObrigacoes.dezembro, ...rawObrigacoes.dezembro },
+    },
   };
 }
 
-// Convert Empresa to DB row fields
 function empresaToRow(empresa: Partial<Empresa>) {
   const row: Record<string, any> = {};
   if (empresa.nome !== undefined) row.nome = empresa.nome;
@@ -63,10 +84,48 @@ function empresaToRow(empresa: Partial<Empresa>) {
   return row;
 }
 
+function empresaToFullRow(e: Empresa) {
+  return {
+    numero: e.numero,
+    nome: e.nome,
+    cnpj: e.cnpj,
+    data_abertura: e.dataAbertura,
+    data_cadastro: e.dataCadastro || "2026-01-01",
+    regime_tributario: e.regimeTributario,
+    emite_nota_fiscal: e.emiteNotaFiscal,
+    socios: e.socios,
+    meses: e.meses,
+    obrigacoes: e.obrigacoes,
+  };
+}
+
 export function useEmpresas() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+
+  const seedDatabase = useCallback(async () => {
+    try {
+      const { SEED_DATA } = await import("@/data/seed");
+      const rows = SEED_DATA.map(empresaToFullRow);
+
+      // Batch insert in groups of 50
+      for (let i = 0; i < rows.length; i += 50) {
+        const batch = rows.slice(i, i + 50);
+        const { error } = await supabase.from("empresas").insert(batch as any);
+        if (error) {
+          console.error("Seed batch error:", error);
+          toast({ title: "Erro ao popular banco", description: error.message, variant: "destructive" });
+          return false;
+        }
+      }
+      toast({ title: "Dados carregados!", description: `${rows.length} empresas importadas com sucesso.` });
+      return true;
+    } catch (err) {
+      console.error("Seed error:", err);
+      return false;
+    }
+  }, [toast]);
 
   const fetchEmpresas = useCallback(async () => {
     const { data, error } = await supabase
@@ -76,11 +135,25 @@ export function useEmpresas() {
 
     if (error) {
       toast({ title: "Erro ao carregar empresas", description: error.message, variant: "destructive" });
+      setLoading(false);
       return;
     }
-    setEmpresas((data ?? []).map(rowToEmpresa));
+
+    if (!data || data.length === 0) {
+      // Auto-seed from SEED_DATA
+      const seeded = await seedDatabase();
+      if (seeded) {
+        const { data: seededData } = await supabase
+          .from("empresas")
+          .select("*")
+          .order("numero", { ascending: true });
+        setEmpresas((seededData ?? []).map(rowToEmpresa));
+      }
+    } else {
+      setEmpresas(data.map(rowToEmpresa));
+    }
     setLoading(false);
-  }, [toast]);
+  }, [seedDatabase, toast]);
 
   useEffect(() => {
     fetchEmpresas();
@@ -91,7 +164,6 @@ export function useEmpresas() {
       ...empresa,
       dataCadastro: new Date().toISOString().split("T")[0],
     });
-
     const { error } = await supabase.from("empresas").insert(row as any);
     if (error) {
       toast({ title: "Erro ao adicionar empresa", description: error.message, variant: "destructive" });
@@ -107,7 +179,6 @@ export function useEmpresas() {
       toast({ title: "Erro ao atualizar empresa", description: error.message, variant: "destructive" });
       return;
     }
-    // Optimistic update
     setEmpresas((prev) => prev.map((e) => (e.id === id ? { ...e, ...updates } : e)));
   }, [toast]);
 
