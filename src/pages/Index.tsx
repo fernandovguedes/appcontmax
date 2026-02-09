@@ -31,7 +31,7 @@ const Index = () => {
   }, []);
 
   const handleStatusChange = useCallback(
-    (empresaId: string, mes: MesKey, campo: keyof Empresa["obrigacoes"]["janeiro"], valor: StatusEntrega) => {
+    (empresaId: string, mes: MesKey, campo: keyof Empresa["obrigacoes"]["marco"], valor: StatusEntrega) => {
       const empresa = empresas.find((e) => e.id === empresaId);
       if (!empresa) return;
       updateEmpresa(empresaId, {
