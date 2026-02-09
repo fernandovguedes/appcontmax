@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
-import { StatusEntrega } from "@/types/fiscal";
-import { CheckCircle2, XCircle, Minus } from "lucide-react";
+import { StatusEntrega, StatusExtrato } from "@/types/fiscal";
+import { CheckCircle2, XCircle, Minus, FileCheck, FileX, FileMinus } from "lucide-react";
 
 interface StatusBadgeProps {
   status: StatusEntrega;
@@ -15,6 +15,27 @@ const config: Record<StatusEntrega, { label: string; icon: typeof CheckCircle2; 
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
   const { label, icon: Icon, colorClass } = config[status];
+  return (
+    <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold", colorClass, className)}>
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </span>
+  );
+}
+
+interface ExtratoBadgeProps {
+  status: StatusExtrato;
+  className?: string;
+}
+
+const extratoConfig: Record<StatusExtrato, { label: string; icon: typeof CheckCircle2; colorClass: string }> = {
+  sim: { label: "Enviado", icon: FileCheck, colorClass: "text-[hsl(var(--success))] bg-[hsl(var(--success)/0.1)]" },
+  nao: { label: "Não Enviado", icon: FileX, colorClass: "text-destructive bg-destructive/10" },
+  sem_faturamento: { label: "Sem Fat.", icon: FileMinus, colorClass: "text-muted-foreground bg-muted" },
+};
+
+export function ExtratoBadge({ status, className }: ExtratoBadgeProps) {
+  const { label, icon: Icon, colorClass } = extratoConfig[status];
   return (
     <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold", colorClass, className)}>
       <Icon className="h-3.5 w-3.5" />

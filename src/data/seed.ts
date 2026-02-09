@@ -1,10 +1,10 @@
-import { Empresa } from "@/types/fiscal";
+import { Empresa, StatusExtrato } from "@/types/fiscal";
 
 const emptyMes = () => ({
-  recebimentoExtrato: false,
+  extratoEnviado: "nao" as StatusExtrato,
   faturamentoNacional: 0,
+  faturamentoNotaFiscal: 0,
   faturamentoExterior: 0,
-  notasEmitidas: 0,
   faturamentoTotal: 0,
   distribuicaoLucros: 0,
 });
@@ -23,6 +23,7 @@ export const SEED_DATA: Empresa[] = [
     nome: "Empresa Exemplo Alpha LTDA",
     cnpj: "12.345.678/0001-90",
     dataAbertura: "2020-03-15",
+    emiteNotaFiscal: true,
     socios: [
       { nome: "João Silva", percentual: 60, cpf: "123.456.789-00" },
       { nome: "Maria Santos", percentual: 40, cpf: "987.654.321-00" },
@@ -36,12 +37,13 @@ export const SEED_DATA: Empresa[] = [
     nome: "Beta Serviços e Consultoria ME",
     cnpj: "98.765.432/0001-10",
     dataAbertura: "2019-08-01",
+    emiteNotaFiscal: true,
     socios: [
       { nome: "Carlos Oliveira", percentual: 100, cpf: "111.222.333-44" },
     ],
     meses: {
-      janeiro: { ...emptyMes(), faturamentoNacional: 45000, notasEmitidas: 12, faturamentoTotal: 45000 },
-      fevereiro: { ...emptyMes(), recebimentoExtrato: true, faturamentoNacional: 52000, notasEmitidas: 15, faturamentoTotal: 52000 },
+      janeiro: { extratoEnviado: "sim", faturamentoNacional: 30000, faturamentoNotaFiscal: 15000, faturamentoExterior: 0, faturamentoTotal: 45000, distribuicaoLucros: 33750 },
+      fevereiro: { extratoEnviado: "sim", faturamentoNacional: 40000, faturamentoNotaFiscal: 12000, faturamentoExterior: 0, faturamentoTotal: 52000, distribuicaoLucros: 39000 },
       marco: emptyMes(),
     },
     obrigacoes: {
@@ -56,13 +58,14 @@ export const SEED_DATA: Empresa[] = [
     nome: "Gamma Comércio Digital EIRELI",
     cnpj: "55.666.777/0001-88",
     dataAbertura: "2022-01-10",
+    emiteNotaFiscal: true,
     socios: [
       { nome: "Ana Costa", percentual: 50, cpf: "555.666.777-88" },
       { nome: "Pedro Lima", percentual: 50, cpf: "999.888.777-66" },
     ],
     meses: {
-      janeiro: { recebimentoExtrato: true, faturamentoNacional: 120000, faturamentoExterior: 30000, notasEmitidas: 45, faturamentoTotal: 150000, distribuicaoLucros: 20000 },
-      fevereiro: { recebimentoExtrato: true, faturamentoNacional: 98000, faturamentoExterior: 15000, notasEmitidas: 38, faturamentoTotal: 113000, distribuicaoLucros: 15000 },
+      janeiro: { extratoEnviado: "sim", faturamentoNacional: 100000, faturamentoNotaFiscal: 20000, faturamentoExterior: 30000, faturamentoTotal: 150000, distribuicaoLucros: 112500 },
+      fevereiro: { extratoEnviado: "sim", faturamentoNacional: 80000, faturamentoNotaFiscal: 18000, faturamentoExterior: 15000, faturamentoTotal: 113000, distribuicaoLucros: 84750 },
       marco: emptyMes(),
     },
     obrigacoes: {
