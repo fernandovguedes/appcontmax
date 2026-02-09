@@ -18,10 +18,28 @@ const Index = () => {
   const [formOpen, setFormOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
 
+  const MES_INDEX: Record<MesKey, number> = {
+    janeiro: 0, fevereiro: 1, marco: 2, abril: 3, maio: 4, junho: 5,
+    julho: 6, agosto: 7, setembro: 8, outubro: 9, novembro: 10, dezembro: 11,
+  };
+
   const filtered = empresas.filter((e) => {
     const matchesSearch = e.nome.toLowerCase().includes(search.toLowerCase()) || e.cnpj.includes(search);
     const matchesRegime = regimeFilter === "todos" || e.regimeTributario === regimeFilter;
-    return matchesSearch && matchesRegime;
+
+    // Filtrar por data de abertura: só mostrar em meses >= mês de abertura no mesmo ano
+    let matchesMes = true;
+    if (e.dataAbertura) {
+      const abertura = new Date(e.dataAbertura);
+      const anoAtual = 2026; // ano do sistema
+      if (abertura.getFullYear() === anoAtual) {
+        matchesMes = MES_INDEX[mesSelecionado] >= abertura.getMonth();
+      } else if (abertura.getFullYear() > anoAtual) {
+        matchesMes = false;
+      }
+    }
+
+    return matchesSearch && matchesRegime && matchesMes;
   });
 
   const handleEdit = useCallback((empresa: Empresa) => {
