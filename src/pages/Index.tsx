@@ -17,7 +17,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Filter, LogOut } from "lucide-react";
+import { Plus, Search, Filter, LogOut, Download, AlertTriangle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { isMesFechamentoTrimestre, getMesesTrimestre, calcularFaturamentoTrimestre } from "@/types/fiscal";
+import { exportToExcel } from "@/lib/exportExcel";
 import logo from "@/assets/logo_contmax.png";
 
 const Index = () => {
@@ -26,6 +29,7 @@ const Index = () => {
   const [mesSelecionado, setMesSelecionado] = useState<MesKey>("janeiro");
   const [search, setSearch] = useState("");
   const [regimeFilter, setRegimeFilter] = useState<RegimeTributario | "todos">("todos");
+  const [reinfFilter, setReinfFilter] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
 
@@ -44,6 +48,8 @@ const Index = () => {
     dezembro: 11,
   };
 
+  const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
+
   const filtered = empresas.filter((e) => {
     const matchesSearch = e.nome.toLowerCase().includes(search.toLowerCase()) || e.cnpj.includes(search);
     const matchesRegime = regimeFilter === "todos" || e.regimeTributario === regimeFilter;
@@ -60,7 +66,14 @@ const Index = () => {
       }
     }
 
-    return matchesSearch && matchesRegime && matchesMes;
+    // Filtro REINF: só empresas com faturamento no trimestre
+    let matchesReinf = true;
+    if (reinfFilter && isFechamento) {
+      const fatTrimestre = calcularFaturamentoTrimestre(e, mesSelecionado);
+      matchesReinf = fatTrimestre > 0;
+    }
+
+    return matchesSearch && matchesRegime && matchesMes && matchesReinf;
   });
 
   const handleEdit = useCallback((empresa: Empresa) => {
@@ -114,6 +127,9 @@ const Index = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => exportToExcel(filtered, mesSelecionado)}>
+              <Download className="mr-1 h-4 w-4" /> Excel
+            </Button>
             <Button onClick={handleNew} className="bg-accent text-accent-foreground hover:bg-accent/90">
               <Plus className="mr-1 h-4 w-4" /> Nova Empresa
             </Button>
@@ -139,7 +155,14 @@ const Index = () => {
               ))}
             </TabsList>
           </Tabs>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {isFechamento && (
+              <label className="flex items-center gap-1.5 text-sm cursor-pointer border rounded-md px-3 py-1.5 bg-card hover:bg-muted/50 transition-colors">
+                <Checkbox checked={reinfFilter} onCheckedChange={(v) => setReinfFilter(!!v)} />
+                <AlertTriangle className="h-3.5 w-3.5 text-accent" />
+                <span className="text-muted-foreground">REINF obrigatória</span>
+              </label>
+            )}
             <Select value={regimeFilter} onValueChange={(v) => setRegimeFilter(v as RegimeTributario | "todos")}>
               <SelectTrigger className="w-[180px]">
                 <Filter className="h-4 w-4 mr-1 text-muted-foreground" />
