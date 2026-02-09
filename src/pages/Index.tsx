@@ -1,6 +1,14 @@
 import { useState, useCallback } from "react";
 import { useEmpresas } from "@/hooks/useEmpresas";
-import { Empresa, MesKey, MES_LABELS, StatusEntrega, StatusExtrato, RegimeTributario, REGIME_LABELS } from "@/types/fiscal";
+import {
+  Empresa,
+  MesKey,
+  MES_LABELS,
+  StatusEntrega,
+  StatusExtrato,
+  RegimeTributario,
+  REGIME_LABELS,
+} from "@/types/fiscal";
 import { DashboardSummary } from "@/components/DashboardSummary";
 import { EmpresaTable } from "@/components/EmpresaTable";
 import { EmpresaFormDialog } from "@/components/EmpresaFormDialog";
@@ -19,8 +27,18 @@ const Index = () => {
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
 
   const MES_INDEX: Record<MesKey, number> = {
-    janeiro: 0, fevereiro: 1, marco: 2, abril: 3, maio: 4, junho: 5,
-    julho: 6, agosto: 7, setembro: 8, outubro: 9, novembro: 10, dezembro: 11,
+    janeiro: 0,
+    fevereiro: 1,
+    marco: 2,
+    abril: 3,
+    maio: 4,
+    junho: 5,
+    julho: 6,
+    agosto: 7,
+    setembro: 8,
+    outubro: 9,
+    novembro: 10,
+    dezembro: 11,
   };
 
   const filtered = empresas.filter((e) => {
@@ -164,3 +182,6 @@ const Index = () => {
 };
 
 export default Index;
+
+localStorage.clear();
+location.reload();
