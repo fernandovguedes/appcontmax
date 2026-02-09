@@ -1,9 +1,11 @@
 import { Empresa, MesKey, StatusEntrega, StatusExtrato, calcularDistribuicaoSocios } from "@/types/fiscal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge, ExtratoBadge } from "@/components/StatusBadge";
+import { DistribuicaoSociosPopover } from "@/components/DistribuicaoSociosPopover";
+import { ReinfAlert } from "@/components/ReinfAlert";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Pencil, Trash2, FileText, FileX, AlertTriangle } from "lucide-react";
+import { Pencil, Trash2, FileText, FileX } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface EmpresaTableProps {
@@ -48,8 +50,7 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
             const ob = empresa.obrigacoes[mesSelecionado];
             const mes = empresa.meses[mesSelecionado];
             const sociosComDistribuicao = calcularDistribuicaoSocios(empresa.socios, mes.distribuicaoLucros);
-            const sociosAcima50k = sociosComDistribuicao.filter(s => (s.distribuicaoLucros ?? 0) > LIMITE_DISTRIBUICAO_SOCIO);
-            const temAlerta = sociosAcima50k.length > 0;
+            const temAlerta = sociosComDistribuicao.some(s => (s.distribuicaoLucros ?? 0) > LIMITE_DISTRIBUICAO_SOCIO);
 
             return (
               <TableRow key={empresa.id} className={temAlerta ? "bg-destructive/5" : ""}>
@@ -81,39 +82,38 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
                   {mes.faturamentoTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <span className="font-medium text-accent">
-                      {mes.distribuicaoLucros.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                    </span>
-                    {temAlerta && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger>
-                            <AlertTriangle className="h-4 w-4 text-destructive" />
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            <p className="font-semibold text-destructive mb-1">⚠️ Sócio(s) acima de R$ 50.000:</p>
-                            <ul className="text-xs space-y-1">
-                              {sociosAcima50k.map((s, i) => (
-                                <li key={i}>
-                                  {s.nome} ({s.percentual}%): {(s.distribuicaoLucros ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                                </li>
-                              ))}
-                            </ul>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
+                  <DistribuicaoSociosPopover 
+                    socios={empresa.socios} 
+                    distribuicaoTotal={mes.distribuicaoLucros} 
+                  />
+                </TableCell>
+                <TableCell className="text-center">
+                  <StatusSelect
+                    value={ob.lancamentoFiscal}
+                    onChange={(v) => onStatusChange(empresa.id, mesSelecionado, "lancamentoFiscal", v)}
+                  />
+                </TableCell>
+                <TableCell className="text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <StatusSelect
+                      value={ob.reinf}
+                      onChange={(v) => onStatusChange(empresa.id, mesSelecionado, "reinf", v)}
+                    />
+                    <ReinfAlert empresa={empresa} mesSelecionado={mesSelecionado} />
                   </div>
                 </TableCell>
-                {(["lancamentoFiscal", "reinf", "dcftWeb", "mit"] as const).map((campo) => (
-                  <TableCell key={campo} className="text-center">
-                    <StatusSelect
-                      value={ob[campo]}
-                      onChange={(v) => onStatusChange(empresa.id, mesSelecionado, campo, v)}
-                    />
-                  </TableCell>
-                ))}
+                <TableCell className="text-center">
+                  <StatusSelect
+                    value={ob.dcftWeb}
+                    onChange={(v) => onStatusChange(empresa.id, mesSelecionado, "dcftWeb", v)}
+                  />
+                </TableCell>
+                <TableCell className="text-center">
+                  <StatusSelect
+                    value={ob.mit}
+                    onChange={(v) => onStatusChange(empresa.id, mesSelecionado, "mit", v)}
+                  />
+                </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-center gap-1">
                     <Button variant="ghost" size="icon" onClick={() => onEdit(empresa)}>
