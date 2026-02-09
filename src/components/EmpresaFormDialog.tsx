@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Empresa, MesKey, MES_LABELS, Socio, StatusExtrato, MesesData, ObrigacoesData, calcularFaturamento, RegimeTributario, REGIME_LABELS } from "@/types/fiscal";
+import { Empresa, MesKey, MES_LABELS, Socio, StatusExtrato, StatusQuestor, MesesData, ObrigacoesData, calcularFaturamento, RegimeTributario, REGIME_LABELS } from "@/types/fiscal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,21 +24,14 @@ const emptyMes = () => ({
   faturamentoExterior: 0,
   faturamentoTotal: 0,
   distribuicaoLucros: 0,
+  lancadoQuestor: "pendente" as StatusQuestor,
 });
 
 const createEmptyMeses = (): MesesData => ({
-  janeiro: emptyMes(),
-  fevereiro: emptyMes(),
-  marco: emptyMes(),
-  abril: emptyMes(),
-  maio: emptyMes(),
-  junho: emptyMes(),
-  julho: emptyMes(),
-  agosto: emptyMes(),
-  setembro: emptyMes(),
-  outubro: emptyMes(),
-  novembro: emptyMes(),
-  dezembro: emptyMes(),
+  janeiro: emptyMes(), fevereiro: emptyMes(), marco: emptyMes(),
+  abril: emptyMes(), maio: emptyMes(), junho: emptyMes(),
+  julho: emptyMes(), agosto: emptyMes(), setembro: emptyMes(),
+  outubro: emptyMes(), novembro: emptyMes(), dezembro: emptyMes(),
 });
 
 const emptyObrigacoes = () => ({
@@ -61,7 +54,7 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
   const [nome, setNome] = useState(empresa?.nome ?? "");
   const [numero, setNumero] = useState<number | "">(empresa?.numero ?? "");
   const [cnpj, setCnpj] = useState(empresa?.cnpj ?? "");
-  const [dataAbertura, setDataAbertura] = useState(empresa?.dataAbertura ?? "");
+  const [inicioCompetencia, setInicioCompetencia] = useState(empresa?.inicioCompetencia ?? "");
   const [emiteNotaFiscal, setEmiteNotaFiscal] = useState(empresa?.emiteNotaFiscal ?? true);
   const [regimeTributario, setRegimeTributario] = useState<RegimeTributario>(empresa?.regimeTributario ?? "simples_nacional");
   const [socios, setSocios] = useState<Socio[]>(empresa?.socios ?? [{ nome: "", percentual: 100, cpf: "" }]);
@@ -72,7 +65,7 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
       numero: typeof numero === "number" ? numero : 0,
       nome,
       cnpj,
-      dataAbertura,
+      inicioCompetencia,
       regimeTributario,
       emiteNotaFiscal,
       socios,
@@ -87,18 +80,18 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
     onOpenChange(false);
   };
 
-  const updateMes = (mes: MesKey, field: string, value: number | StatusExtrato) => {
+  const updateMes = (mes: MesKey, field: string, value: number | StatusExtrato | StatusQuestor) => {
     setMeses((prev) => {
       const current = prev[mes];
       const updated = { ...current, [field]: value };
       
-      // Recalcular totais se for campo de faturamento
       if (typeof value === "number") {
         const recalc = calcularFaturamento({
           extratoEnviado: updated.extratoEnviado,
           faturamentoNacional: updated.faturamentoNacional,
           faturamentoNotaFiscal: updated.faturamentoNotaFiscal,
           faturamentoExterior: updated.faturamentoExterior,
+          lancadoQuestor: updated.lancadoQuestor,
         });
         return { ...prev, [mes]: recalc };
       }
@@ -129,8 +122,8 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
               <Input value={cnpj} onChange={(e) => setCnpj(e.target.value)} placeholder="00.000.000/0000-00" />
             </div>
             <div className="space-y-2">
-              <Label>Data de Abertura</Label>
-              <Input type="date" value={dataAbertura} onChange={(e) => setDataAbertura(e.target.value)} />
+              <Label>Início da Competência</Label>
+              <Input type="date" value={inicioCompetencia} onChange={(e) => setInicioCompetencia(e.target.value)} />
             </div>
             <div className="flex items-center gap-3 pt-6">
               <Switch checked={emiteNotaFiscal} onCheckedChange={setEmiteNotaFiscal} id="emite-nf" />
@@ -185,18 +178,33 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
             </TabsList>
             {(Object.keys(MES_LABELS) as MesKey[]).map((m) => (
               <TabsContent key={m} value={m} className="space-y-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Envio do Extrato Bancário</Label>
-                  <Select value={meses[m].extratoEnviado} onValueChange={(v) => updateMes(m, "extratoEnviado", v as StatusExtrato)}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sim">✅ Sim</SelectItem>
-                      <SelectItem value="nao">❌ Não</SelectItem>
-                      <SelectItem value="sem_faturamento">➖ Sem Faturamento</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Envio do Extrato Bancário</Label>
+                    <Select value={meses[m].extratoEnviado} onValueChange={(v) => updateMes(m, "extratoEnviado", v as StatusExtrato)}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sim">✅ Sim</SelectItem>
+                        <SelectItem value="nao">❌ Não</SelectItem>
+                        <SelectItem value="sem_faturamento">➖ Sem Faturamento</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Lançado no Questor</Label>
+                    <Select value={meses[m].lancadoQuestor} onValueChange={(v) => updateMes(m, "lancadoQuestor", v as StatusQuestor)}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ok">✅ OK</SelectItem>
+                        <SelectItem value="sem_faturamento">➖ Sem Faturamento</SelectItem>
+                        <SelectItem value="pendente">❌ Pendente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1">

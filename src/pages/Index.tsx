@@ -33,6 +33,13 @@ import { isMesFechamentoTrimestre, getMesesTrimestre, calcularFaturamentoTrimest
 import { exportToExcel } from "@/lib/exportExcel";
 import logo from "@/assets/logo_contmax.png";
 
+const MES_INDEX: Record<MesKey, number> = {
+  janeiro: 0, fevereiro: 1, marco: 2,
+  abril: 3, maio: 4, junho: 5,
+  julho: 6, agosto: 7, setembro: 8,
+  outubro: 9, novembro: 10, dezembro: 11,
+};
+
 const Index = () => {
   const { empresas, loading, addEmpresa, updateEmpresa, deleteEmpresa } = useEmpresas();
   const { signOut } = useAuth();
@@ -46,47 +53,30 @@ const Index = () => {
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; nome: string }>({ open: false, id: "", nome: "" });
 
-  const MES_INDEX: Record<MesKey, number> = {
-    janeiro: 0,
-    fevereiro: 1,
-    marco: 2,
-    abril: 3,
-    maio: 4,
-    junho: 5,
-    julho: 6,
-    agosto: 7,
-    setembro: 8,
-    outubro: 9,
-    novembro: 10,
-    dezembro: 11,
-  };
-
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
 
   const filtered = empresas.filter((e) => {
     const matchesSearch = e.nome.toLowerCase().includes(search.toLowerCase()) || e.cnpj.includes(search);
     const matchesRegime = regimeFilter === "todos" || e.regimeTributario === regimeFilter;
 
-    // Filtrar por data de cadastro no sistema
+    // Filtrar por início da competência
     let matchesMes = true;
-    if (e.dataCadastro) {
-      const cadastro = new Date(e.dataCadastro);
+    if (e.inicioCompetencia) {
+      const inicio = new Date(e.inicioCompetencia);
       const anoAtual = 2026;
-      if (cadastro.getFullYear() === anoAtual) {
-        matchesMes = MES_INDEX[mesSelecionado] >= cadastro.getMonth();
-      } else if (cadastro.getFullYear() > anoAtual) {
+      if (inicio.getFullYear() === anoAtual) {
+        matchesMes = MES_INDEX[mesSelecionado] >= inicio.getMonth();
+      } else if (inicio.getFullYear() > anoAtual) {
         matchesMes = false;
       }
     }
 
-    // Filtro REINF: só empresas com faturamento no trimestre
     let matchesReinf = true;
     if (reinfFilter && isFechamento) {
       const fatTrimestre = calcularFaturamentoTrimestre(e, mesSelecionado);
       matchesReinf = fatTrimestre > 0;
     }
 
-    // Filtro NF/Exterior: empresas com faturamento de NF ou Exterior no mês
     let matchesNfExterior = true;
     if (nfFilter || exteriorFilter) {
       const dados = e.meses[mesSelecionado];
@@ -136,9 +126,22 @@ const Index = () => {
     [empresas, updateEmpresa],
   );
 
+  const handleMesFieldChange = useCallback(
+    (empresaId: string, mes: MesKey, campo: string, valor: any) => {
+      const empresa = empresas.find((e) => e.id === empresaId);
+      if (!empresa) return;
+      updateEmpresa(empresaId, {
+        meses: {
+          ...empresa.meses,
+          [mes]: { ...empresa.meses[mes], [campo]: valor },
+        },
+      });
+    },
+    [empresas, updateEmpresa],
+  );
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
@@ -163,10 +166,8 @@ const Index = () => {
       </header>
 
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-6">
-        {/* Summary */}
         <DashboardSummary empresas={filtered} mesSelecionado={mesSelecionado} />
 
-        {/* Controls */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Tabs value={mesSelecionado} onValueChange={(v) => setMesSelecionado(v as MesKey)}>
             <TabsList>
@@ -218,7 +219,6 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Table */}
         <EmpresaTable
           empresas={filtered}
           mesSelecionado={mesSelecionado}
@@ -229,10 +229,10 @@ const Index = () => {
           }}
           onStatusChange={handleStatusChange}
           onExtratoChange={handleExtratoChange}
+          onMesFieldChange={handleMesFieldChange}
         />
       </main>
 
-      {/* Delete Confirmation */}
       <AlertDialog open={deleteConfirm.open} onOpenChange={(open) => setDeleteConfirm((prev) => ({ ...prev, open }))}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -256,7 +256,6 @@ const Index = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Form Dialog */}
       <EmpresaFormDialog
         key={editingEmpresa?.id ?? "new"}
         open={formOpen}

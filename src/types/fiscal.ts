@@ -9,19 +9,23 @@ export interface Socio {
   nome: string;
   percentual: number;
   cpf: string;
-  distribuicaoLucros?: number; // calculado: 75% do faturamento total * percentual do sócio
+  distribuicaoLucros?: number;
 }
 
 export type StatusEntrega = "ok" | "pendente" | "nao_aplicavel";
 export type StatusExtrato = "sim" | "nao" | "sem_faturamento";
+export type StatusQuestor = "ok" | "sem_faturamento" | "pendente";
 
 export interface DadosMensais {
   extratoEnviado: StatusExtrato;
   faturamentoNacional: number;
   faturamentoNotaFiscal: number;
   faturamentoExterior: number;
-  faturamentoTotal: number; // calculado: nacional + NF + exterior
-  distribuicaoLucros: number; // calculado: 75% do faturamento total
+  faturamentoTotal: number;
+  distribuicaoLucros: number;
+  lancadoQuestor: StatusQuestor;
+  reinfPosFechamento?: StatusEntrega;
+  dctfWebSemMovimento?: StatusEntrega;
 }
 
 export interface ControleObrigacoes {
@@ -75,6 +79,30 @@ export function getMesesTrimestre(mesFechamento: MesKey): MesKey[] {
   }
 }
 
+// Meses pós-fechamento onde REINF pós-fechamento aparece
+export const MESES_POS_REINF: MesKey[] = ["abril", "julho", "outubro", "janeiro"];
+
+// Meses pós-fechamento onde DCTF Web sem movimento aparece
+export const MESES_POS_DCTF: MesKey[] = ["maio", "agosto", "novembro", "fevereiro"];
+
+export function isMesReinfPosFechamento(mes: MesKey): boolean {
+  return MESES_POS_REINF.includes(mes);
+}
+
+export function isMesDctfPosFechamento(mes: MesKey): boolean {
+  return MESES_POS_DCTF.includes(mes);
+}
+
+export function getTrimestreFechamentoAnterior(mes: MesKey): MesKey | null {
+  const map: Partial<Record<MesKey, MesKey>> = {
+    abril: "marco", maio: "marco",
+    julho: "junho", agosto: "junho",
+    outubro: "setembro", novembro: "setembro",
+    janeiro: "dezembro", fevereiro: "dezembro",
+  };
+  return map[mes] ?? null;
+}
+
 export interface MesesData {
   janeiro: DadosMensais;
   fevereiro: DadosMensais;
@@ -102,8 +130,8 @@ export interface Empresa {
   numero: number;
   nome: string;
   cnpj: string;
-  dataAbertura: string;
-  dataCadastro: string; // ISO date de quando foi cadastrada no sistema
+  inicioCompetencia: string;
+  dataCadastro: string;
   regimeTributario: RegimeTributario;
   emiteNotaFiscal: boolean;
   socios: Socio[];
@@ -112,10 +140,10 @@ export interface Empresa {
 }
 
 // Calcula faturamento total e distribuição de lucros
-export function calcularFaturamento(dados: Omit<DadosMensais, "faturamentoTotal" | "distribuicaoLucros">): DadosMensais {
+export function calcularFaturamento(dados: Omit<DadosMensais, "faturamentoTotal" | "distribuicaoLucros" | "lancadoQuestor" | "reinfPosFechamento" | "dctfWebSemMovimento"> & Partial<Pick<DadosMensais, "lancadoQuestor" | "reinfPosFechamento" | "dctfWebSemMovimento">>): DadosMensais {
   const faturamentoTotal = dados.faturamentoNacional + dados.faturamentoNotaFiscal + dados.faturamentoExterior;
   const distribuicaoLucros = faturamentoTotal * 0.75;
-  return { ...dados, faturamentoTotal, distribuicaoLucros };
+  return { ...dados, faturamentoTotal, distribuicaoLucros, lancadoQuestor: dados.lancadoQuestor ?? "pendente" };
 }
 
 // Calcula distribuição por sócio

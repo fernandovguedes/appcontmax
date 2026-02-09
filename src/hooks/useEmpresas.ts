@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Empresa, StatusExtrato, MesesData, ObrigacoesData, DadosMensais, ControleObrigacoes } from "@/types/fiscal";
+import { Empresa, StatusExtrato, StatusQuestor, MesesData, ObrigacoesData, DadosMensais, ControleObrigacoes } from "@/types/fiscal";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -10,6 +10,7 @@ const emptyMes = (): DadosMensais => ({
   faturamentoExterior: 0,
   faturamentoTotal: 0,
   distribuicaoLucros: 0,
+  lancadoQuestor: "pendente" as StatusQuestor,
 });
 
 const emptyObrigacoes = (): ControleObrigacoes => ({
@@ -42,7 +43,7 @@ function rowToEmpresa(row: any): Empresa {
     numero: row.numero,
     nome: row.nome,
     cnpj: row.cnpj,
-    dataAbertura: row.data_abertura ?? "",
+    inicioCompetencia: row.data_abertura ?? "",
     dataCadastro: row.data_cadastro,
     regimeTributario: row.regime_tributario,
     emiteNotaFiscal: row.emite_nota_fiscal,
@@ -74,7 +75,7 @@ function empresaToRow(empresa: Partial<Empresa>) {
   const row: Record<string, any> = {};
   if (empresa.nome !== undefined) row.nome = empresa.nome;
   if (empresa.cnpj !== undefined) row.cnpj = empresa.cnpj;
-  if (empresa.dataAbertura !== undefined) row.data_abertura = empresa.dataAbertura;
+  if (empresa.inicioCompetencia !== undefined) row.data_abertura = empresa.inicioCompetencia;
   if (empresa.dataCadastro !== undefined) row.data_cadastro = empresa.dataCadastro;
   if (empresa.regimeTributario !== undefined) row.regime_tributario = empresa.regimeTributario;
   if (empresa.emiteNotaFiscal !== undefined) row.emite_nota_fiscal = empresa.emiteNotaFiscal;
@@ -89,7 +90,7 @@ function empresaToFullRow(e: Empresa) {
     numero: e.numero,
     nome: e.nome,
     cnpj: e.cnpj,
-    data_abertura: e.dataAbertura,
+    data_abertura: e.inicioCompetencia,
     data_cadastro: e.dataCadastro || "2026-01-01",
     regime_tributario: e.regimeTributario,
     emite_nota_fiscal: e.emiteNotaFiscal,
@@ -109,7 +110,6 @@ export function useEmpresas() {
       const { SEED_DATA } = await import("@/data/seed");
       const rows = SEED_DATA.map(empresaToFullRow);
 
-      // Batch insert in groups of 50
       for (let i = 0; i < rows.length; i += 50) {
         const batch = rows.slice(i, i + 50);
         const { error } = await supabase.from("empresas").insert(batch as any);
@@ -140,7 +140,6 @@ export function useEmpresas() {
     }
 
     if (!data || data.length === 0) {
-      // Auto-seed from SEED_DATA
       const seeded = await seedDatabase();
       if (seeded) {
         const { data: seededData } = await supabase
