@@ -62,13 +62,16 @@ export function DistribuicaoSociosPopover({ socios, distribuicaoTotal, label, is
                   <span className="text-muted-foreground">{MES_LABELS[d.mes]}</span>
                   <div className="flex gap-3">
                     <span className="text-muted-foreground">Fat: {formatCurrency(d.faturamento)}</span>
-                    <span className="font-medium">{formatCurrency(d.distribuicao)}</span>
+                    <span className="font-medium">Dist: {formatCurrency(d.distribuicao)}</span>
                   </div>
                 </div>
               ))}
               <div className="flex items-center justify-between text-xs pt-1 border-t border-border/50">
                 <span className="font-medium">Total trimestre</span>
-                <span className="font-semibold text-primary">{formatCurrency(distribuicaoTotal)}</span>
+                <div className="flex gap-3">
+                  <span className="text-muted-foreground font-medium">Fat: {formatCurrency(detalhesMensais.reduce((s, d) => s + d.faturamento, 0))}</span>
+                  <span className="font-semibold text-primary">Dist: {formatCurrency(distribuicaoTotal)}</span>
+                </div>
               </div>
             </div>
           )}
