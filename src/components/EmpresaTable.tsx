@@ -2,6 +2,7 @@ import { Empresa, MesKey, StatusEntrega, StatusExtrato, calcularDistribuicaoSoci
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge, ExtratoBadge } from "@/components/StatusBadge";
 import { DistribuicaoSociosPopover } from "@/components/DistribuicaoSociosPopover";
+import { FaturamentoPopover } from "@/components/FaturamentoPopover";
 import { ReinfAlert } from "@/components/ReinfAlert";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -109,8 +110,8 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
                     onChange={(v) => onExtratoChange(empresa.id, mesSelecionado, v)}
                   />
                 </TableCell>
-                <TableCell className="text-right font-medium">
-                  {mes.faturamentoTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                <TableCell className="text-right">
+                  <FaturamentoPopover dados={mes} />
                 </TableCell>
                 <TableCell className="text-right">
                   <DistribuicaoSociosPopover 
