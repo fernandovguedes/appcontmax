@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { Empresa, MesKey, MES_LABELS, REGIME_LABELS, isMesFechamentoTrimestre, getMesesTrimestre, isMesReinfPosFechamento, isMesDctfPosFechamento, getTrimestreFechamentoAnterior, calcularFaturamentoTrimestre } from "@/types/fiscal";
+import { Empresa, MesKey, MES_LABELS, REGIME_LABELS, isMesFechamentoTrimestre, getMesesTrimestre, isMesDctfPosFechamento, getTrimestreFechamentoAnterior, calcularFaturamentoTrimestre } from "@/types/fiscal";
 
 function getMesFechamentoTrimestre(mes: MesKey): MesKey {
   if (["janeiro", "fevereiro", "marco"].includes(mes)) return "marco";
@@ -34,7 +34,6 @@ const questorLabel = (s: string) => {
 export function exportToExcel(empresas: Empresa[], mesSelecionado: MesKey) {
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
   const mesTrimestre = getMesFechamentoTrimestre(mesSelecionado);
-  const isReinfPos = isMesReinfPosFechamento(mesSelecionado);
   const isDctfPos = isMesDctfPosFechamento(mesSelecionado);
   const trimestreAnterior = getTrimestreFechamentoAnterior(mesSelecionado);
 
@@ -67,11 +66,6 @@ export function exportToExcel(empresas: Empresa[], mesSelecionado: MesKey) {
       if (e.regimeTributario === "lucro_presumido") {
         base["MIT"] = statusLabel(obr.mit);
       }
-    }
-
-    if (isReinfPos && trimestreAnterior) {
-      const fat = calcularFaturamentoTrimestre(e, trimestreAnterior);
-      base["REINF Pós"] = fat > 0 ? statusLabel(mes.reinfPosFechamento ?? "pendente") : "—";
     }
 
     if (isDctfPos && trimestreAnterior) {

@@ -1,4 +1,4 @@
-import { Empresa, MesKey, StatusEntrega, StatusExtrato, StatusQuestor, calcularDistribuicaoSocios, isMesFechamentoTrimestre, MESES_FECHAMENTO_TRIMESTRE, getMesesTrimestre, isMesReinfPosFechamento, isMesDctfPosFechamento, getTrimestreFechamentoAnterior, calcularFaturamentoTrimestre } from "@/types/fiscal";
+import { Empresa, MesKey, StatusEntrega, StatusExtrato, StatusQuestor, calcularDistribuicaoSocios, isMesFechamentoTrimestre, MESES_FECHAMENTO_TRIMESTRE, getMesesTrimestre, isMesDctfPosFechamento, getTrimestreFechamentoAnterior, calcularFaturamentoTrimestre } from "@/types/fiscal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge, ExtratoBadge, QuestorBadge } from "@/components/StatusBadge";
 import { DistribuicaoSociosPopover } from "@/components/DistribuicaoSociosPopover";
@@ -38,11 +38,10 @@ function calcularDistribuicaoTrimestral(empresa: Empresa, mesFechamento: MesKey)
 export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onStatusChange, onExtratoChange, onMesFieldChange }: EmpresaTableProps) {
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
   const mesTrimestre = getMesFechamentoTrimestre(mesSelecionado);
-  const isReinfPos = isMesReinfPosFechamento(mesSelecionado);
   const isDctfPos = isMesDctfPosFechamento(mesSelecionado);
   const trimestreAnterior = getTrimestreFechamentoAnterior(mesSelecionado);
 
-  const colCount = 9 + (isFechamento ? 5 : 0) + (isReinfPos ? 1 : 0) + (isDctfPos ? 1 : 0);
+  const colCount = 9 + (isFechamento ? 5 : 0) + (isDctfPos ? 1 : 0);
 
   return (
     <div className="rounded-lg border bg-card overflow-x-auto">
@@ -65,9 +64,6 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
                 <TableHead className="text-center">DCTF Web</TableHead>
                 <TableHead className="text-center">MIT</TableHead>
               </>
-            )}
-            {isReinfPos && (
-              <TableHead className="text-center">REINF Pós</TableHead>
             )}
             {isDctfPos && (
               <TableHead className="text-center">DCTF S/Mov</TableHead>
@@ -191,25 +187,20 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
                     </TableCell>
                   </>
                 )}
-                {isReinfPos && (
-                  <TableCell className="text-center">
-                    {reinfObrigatoria ? (
-                      <StatusSelect
-                        value={mes.reinfPosFechamento ?? "pendente"}
-                        onChange={(v) => onMesFieldChange(empresa.id, mesSelecionado, "reinfPosFechamento", v)}
-                      />
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    )}
-                  </TableCell>
-                )}
                 {isDctfPos && (
                   <TableCell className="text-center">
                     {reinfObrigatoria ? (
-                      <StatusSelect
-                        value={mes.dctfWebSemMovimento ?? "pendente"}
-                        onChange={(v) => onMesFieldChange(empresa.id, mesSelecionado, "dctfWebSemMovimento", v)}
-                      />
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-[10px] text-accent font-medium">REINF enviada</span>
+                        <StatusSelect
+                          value={mes.dctfWebSemMovimento ?? "pendente"}
+                          onChange={(v) => onMesFieldChange(empresa.id, mesSelecionado, "dctfWebSemMovimento", v)}
+                          options={[
+                            { value: "ok", label: "✅ OK" },
+                            { value: "pendente", label: "❌ Pendente" },
+                          ]}
+                        />
+                      </div>
                     ) : (
                       <span className="text-muted-foreground text-xs">—</span>
                     )}
@@ -234,16 +225,22 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onDelete, onSta
   );
 }
 
-function StatusSelect({ value, onChange }: { value: StatusEntrega; onChange: (v: StatusEntrega) => void }) {
+function StatusSelect({ value, onChange, options }: { value: StatusEntrega; onChange: (v: StatusEntrega) => void; options?: { value: string; label: string }[] }) {
+  const defaultOptions = [
+    { value: "ok", label: "✅ OK" },
+    { value: "pendente", label: "❌ Pendente" },
+    { value: "nao_aplicavel", label: "➖ N/A" },
+  ];
+  const items = options ?? defaultOptions;
   return (
     <Select value={value} onValueChange={(v) => onChange(v as StatusEntrega)}>
       <SelectTrigger className="h-8 w-[110px] mx-auto border-0 bg-transparent p-0 focus:ring-0 [&>svg]:ml-1">
         <StatusBadge status={value} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="ok">✅ OK</SelectItem>
-        <SelectItem value="pendente">❌ Pendente</SelectItem>
-        <SelectItem value="nao_aplicavel">➖ N/A</SelectItem>
+        {items.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+        ))}
       </SelectContent>
     </Select>
   );
