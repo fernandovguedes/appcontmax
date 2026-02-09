@@ -36,7 +36,7 @@ export default function Auth() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <img src={logo} alt="Contmax" className="mx-auto mb-2 h-12" />
-          <CardTitle>Controle Fiscal</CardTitle>
+          <CardTitle>Portal Contmax</CardTitle>
           <CardDescription>Acesse com suas credenciais</CardDescription>
         </CardHeader>
         <CardContent>

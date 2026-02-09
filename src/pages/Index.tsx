@@ -17,7 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Filter, LogOut, Download, AlertTriangle, FileText } from "lucide-react";
+import { Plus, Search, Filter, LogOut, Download, AlertTriangle, FileText, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,6 +42,7 @@ const MES_INDEX: Record<MesKey, number> = {
 };
 
 const Index = () => {
+  const navigate = useNavigate();
   const { empresas, loading, addEmpresa, updateEmpresa, deleteEmpresa } = useEmpresas();
   const { signOut } = useAuth();
   const [mesSelecionado, setMesSelecionado] = useState<MesKey>("janeiro");
@@ -145,6 +147,9 @@ const Index = () => {
       <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/")} title="Voltar ao Portal">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
             <img src={logo} alt="Contmax" className="h-9" />
             <div>
               <h1 className="text-lg font-bold leading-tight">Controle Fiscal</h1>
