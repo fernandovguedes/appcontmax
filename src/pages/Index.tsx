@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useEmpresas } from "@/hooks/useEmpresas";
-import { Empresa, MesKey, MES_LABELS, StatusEntrega, StatusExtrato } from "@/types/fiscal";
+import { Empresa, MesKey, MES_LABELS, StatusEntrega, StatusExtrato, MESES_FECHAMENTO_TRIMESTRE } from "@/types/fiscal";
 import { DashboardSummary } from "@/components/DashboardSummary";
 import { EmpresaTable } from "@/components/EmpresaTable";
 import { EmpresaFormDialog } from "@/components/EmpresaFormDialog";
@@ -33,13 +33,13 @@ const Index = () => {
   }, []);
 
   const handleStatusChange = useCallback(
-    (empresaId: string, mes: MesKey, campo: keyof Empresa["obrigacoes"]["janeiro"], valor: StatusEntrega) => {
+    (empresaId: string, mesTrimestre: typeof MESES_FECHAMENTO_TRIMESTRE[number], campo: keyof Empresa["obrigacoes"]["marco"], valor: StatusEntrega) => {
       const empresa = empresas.find((e) => e.id === empresaId);
       if (!empresa) return;
       updateEmpresa(empresaId, {
         obrigacoes: {
           ...empresa.obrigacoes,
-          [mes]: { ...empresa.obrigacoes[mes], [campo]: valor },
+          [mesTrimestre]: { ...empresa.obrigacoes[mesTrimestre], [campo]: valor },
         },
       });
     },
@@ -71,7 +71,7 @@ const Index = () => {
             </div>
             <div>
               <h1 className="text-lg font-bold leading-tight">Controle Fiscal</h1>
-              <p className="text-xs text-muted-foreground">Simples Nacional · Jan–Mar 2026</p>
+              <p className="text-xs text-muted-foreground">Simples Nacional · 2026</p>
             </div>
           </div>
           <Button onClick={handleNew} className="bg-accent text-accent-foreground hover:bg-accent/90">
@@ -87,9 +87,9 @@ const Index = () => {
         {/* Controls */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Tabs value={mesSelecionado} onValueChange={(v) => setMesSelecionado(v as MesKey)}>
-            <TabsList>
+            <TabsList className="flex flex-wrap h-auto gap-1">
               {(Object.keys(MES_LABELS) as MesKey[]).map((m) => (
-                <TabsTrigger key={m} value={m}>{MES_LABELS[m]}</TabsTrigger>
+                <TabsTrigger key={m} value={m} className="text-xs px-2 py-1">{MES_LABELS[m].substring(0, 3)}</TabsTrigger>
               ))}
             </TabsList>
           </Tabs>

@@ -1,28 +1,15 @@
-import { Empresa, MesKey } from "@/types/fiscal";
+import { Empresa, MESES_FECHAMENTO_TRIMESTRE, calcularFaturamentoTrimestre } from "@/types/fiscal";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ReinfAlertProps {
   empresa: Empresa;
-  mesSelecionado: MesKey;
+  mesFechamento: typeof MESES_FECHAMENTO_TRIMESTRE[number];
 }
 
-// Calcula o faturamento acumulado do trimestre até o mês selecionado
-function calcularFaturamentoTrimestre(empresa: Empresa): number {
-  const { janeiro, fevereiro, marco } = empresa.meses;
-  return janeiro.faturamentoTotal + fevereiro.faturamentoTotal + marco.faturamentoTotal;
-}
-
-export function ReinfAlert({ empresa, mesSelecionado }: ReinfAlertProps) {
-  const faturamentoTrimestre = calcularFaturamentoTrimestre(empresa);
+export function ReinfAlert({ empresa, mesFechamento }: ReinfAlertProps) {
+  const faturamentoTrimestre = calcularFaturamentoTrimestre(empresa, mesFechamento);
   const deveEntregar = faturamentoTrimestre > 0;
-  
-  // Só mostra o alerta no mês de março (fechamento do trimestre)
-  const isFechamentoTrimestre = mesSelecionado === "marco";
-  
-  if (!isFechamentoTrimestre) {
-    return null;
-  }
 
   return (
     <TooltipProvider>

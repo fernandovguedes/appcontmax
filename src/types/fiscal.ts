@@ -24,6 +24,72 @@ export interface ControleObrigacoes {
   mit: StatusEntrega;
 }
 
+export type MesKey = 
+  | "janeiro" | "fevereiro" | "marco" 
+  | "abril" | "maio" | "junho" 
+  | "julho" | "agosto" | "setembro" 
+  | "outubro" | "novembro" | "dezembro";
+
+export const MES_LABELS: Record<MesKey, string> = {
+  janeiro: "Janeiro",
+  fevereiro: "Fevereiro",
+  marco: "Março",
+  abril: "Abril",
+  maio: "Maio",
+  junho: "Junho",
+  julho: "Julho",
+  agosto: "Agosto",
+  setembro: "Setembro",
+  outubro: "Outubro",
+  novembro: "Novembro",
+  dezembro: "Dezembro",
+};
+
+// Meses que fecham trimestre - onde as obrigações são exigidas
+export const MESES_FECHAMENTO_TRIMESTRE: MesKey[] = ["marco", "junho", "setembro", "dezembro"];
+
+export function isMesFechamentoTrimestre(mes: MesKey): boolean {
+  return MESES_FECHAMENTO_TRIMESTRE.includes(mes);
+}
+
+// Retorna os meses do trimestre para um mês de fechamento
+export function getMesesTrimestre(mesFechamento: MesKey): MesKey[] {
+  switch (mesFechamento) {
+    case "marco":
+      return ["janeiro", "fevereiro", "marco"];
+    case "junho":
+      return ["abril", "maio", "junho"];
+    case "setembro":
+      return ["julho", "agosto", "setembro"];
+    case "dezembro":
+      return ["outubro", "novembro", "dezembro"];
+    default:
+      return [mesFechamento];
+  }
+}
+
+export interface MesesData {
+  janeiro: DadosMensais;
+  fevereiro: DadosMensais;
+  marco: DadosMensais;
+  abril: DadosMensais;
+  maio: DadosMensais;
+  junho: DadosMensais;
+  julho: DadosMensais;
+  agosto: DadosMensais;
+  setembro: DadosMensais;
+  outubro: DadosMensais;
+  novembro: DadosMensais;
+  dezembro: DadosMensais;
+}
+
+export interface ObrigacoesData {
+  marco: ControleObrigacoes;
+  junho: ControleObrigacoes;
+  setembro: ControleObrigacoes;
+  dezembro: ControleObrigacoes;
+}
+
 export interface Empresa {
   id: string;
   numero: number;
@@ -32,25 +98,9 @@ export interface Empresa {
   dataAbertura: string;
   emiteNotaFiscal: boolean;
   socios: Socio[];
-  meses: {
-    janeiro: DadosMensais;
-    fevereiro: DadosMensais;
-    marco: DadosMensais;
-  };
-  obrigacoes: {
-    janeiro: ControleObrigacoes;
-    fevereiro: ControleObrigacoes;
-    marco: ControleObrigacoes;
-  };
+  meses: MesesData;
+  obrigacoes: ObrigacoesData;
 }
-
-export type MesKey = "janeiro" | "fevereiro" | "marco";
-
-export const MES_LABELS: Record<MesKey, string> = {
-  janeiro: "Janeiro",
-  fevereiro: "Fevereiro",
-  marco: "Março",
-};
 
 // Calcula faturamento total e distribuição de lucros
 export function calcularFaturamento(dados: Omit<DadosMensais, "faturamentoTotal" | "distribuicaoLucros">): DadosMensais {
@@ -65,4 +115,10 @@ export function calcularDistribuicaoSocios(socios: Socio[], distribuicaoTotal: n
     ...s,
     distribuicaoLucros: (distribuicaoTotal * s.percentual) / 100
   }));
+}
+
+// Calcula faturamento acumulado do trimestre
+export function calcularFaturamentoTrimestre(empresa: Empresa, mesFechamento: MesKey): number {
+  const meses = getMesesTrimestre(mesFechamento);
+  return meses.reduce((total, mes) => total + empresa.meses[mes].faturamentoTotal, 0);
 }

@@ -1,4 +1,4 @@
-import { Empresa, StatusExtrato } from "@/types/fiscal";
+import { Empresa, StatusExtrato, MesesData, ObrigacoesData } from "@/types/fiscal";
 
 const emptyMes = () => ({
   extratoEnviado: "nao" as StatusExtrato,
@@ -9,11 +9,33 @@ const emptyMes = () => ({
   distribuicaoLucros: 0,
 });
 
+const createEmptyMeses = (): MesesData => ({
+  janeiro: emptyMes(),
+  fevereiro: emptyMes(),
+  marco: emptyMes(),
+  abril: emptyMes(),
+  maio: emptyMes(),
+  junho: emptyMes(),
+  julho: emptyMes(),
+  agosto: emptyMes(),
+  setembro: emptyMes(),
+  outubro: emptyMes(),
+  novembro: emptyMes(),
+  dezembro: emptyMes(),
+});
+
 const emptyObrigacoes = () => ({
   lancamentoFiscal: "pendente" as const,
   reinf: "pendente" as const,
   dcftWeb: "pendente" as const,
   mit: "pendente" as const,
+});
+
+const createEmptyObrigacoes = (): ObrigacoesData => ({
+  marco: emptyObrigacoes(),
+  junho: emptyObrigacoes(),
+  setembro: emptyObrigacoes(),
+  dezembro: emptyObrigacoes(),
 });
 
 export const SEED_DATA: Empresa[] = [
@@ -28,8 +50,8 @@ export const SEED_DATA: Empresa[] = [
       { nome: "João Silva", percentual: 60, cpf: "123.456.789-00" },
       { nome: "Maria Santos", percentual: 40, cpf: "987.654.321-00" },
     ],
-    meses: { janeiro: emptyMes(), fevereiro: emptyMes(), marco: emptyMes() },
-    obrigacoes: { janeiro: emptyObrigacoes(), fevereiro: emptyObrigacoes(), marco: emptyObrigacoes() },
+    meses: createEmptyMeses(),
+    obrigacoes: createEmptyObrigacoes(),
   },
   {
     id: "2",
@@ -42,14 +64,15 @@ export const SEED_DATA: Empresa[] = [
       { nome: "Carlos Oliveira", percentual: 100, cpf: "111.222.333-44" },
     ],
     meses: {
+      ...createEmptyMeses(),
       janeiro: { extratoEnviado: "sim", faturamentoNacional: 30000, faturamentoNotaFiscal: 15000, faturamentoExterior: 0, faturamentoTotal: 45000, distribuicaoLucros: 33750 },
       fevereiro: { extratoEnviado: "sim", faturamentoNacional: 40000, faturamentoNotaFiscal: 12000, faturamentoExterior: 0, faturamentoTotal: 52000, distribuicaoLucros: 39000 },
-      marco: emptyMes(),
     },
     obrigacoes: {
-      janeiro: { lancamentoFiscal: "ok", reinf: "ok", dcftWeb: "ok", mit: "pendente" },
-      fevereiro: { lancamentoFiscal: "ok", reinf: "ok", dcftWeb: "pendente", mit: "pendente" },
-      marco: emptyObrigacoes(),
+      marco: { lancamentoFiscal: "ok", reinf: "ok", dcftWeb: "pendente", mit: "pendente" },
+      junho: emptyObrigacoes(),
+      setembro: emptyObrigacoes(),
+      dezembro: emptyObrigacoes(),
     },
   },
   {
@@ -64,14 +87,15 @@ export const SEED_DATA: Empresa[] = [
       { nome: "Pedro Lima", percentual: 50, cpf: "999.888.777-66" },
     ],
     meses: {
+      ...createEmptyMeses(),
       janeiro: { extratoEnviado: "sim", faturamentoNacional: 100000, faturamentoNotaFiscal: 20000, faturamentoExterior: 30000, faturamentoTotal: 150000, distribuicaoLucros: 112500 },
       fevereiro: { extratoEnviado: "sim", faturamentoNacional: 80000, faturamentoNotaFiscal: 18000, faturamentoExterior: 15000, faturamentoTotal: 113000, distribuicaoLucros: 84750 },
-      marco: emptyMes(),
     },
     obrigacoes: {
-      janeiro: { lancamentoFiscal: "ok", reinf: "ok", dcftWeb: "ok", mit: "ok" },
-      fevereiro: { lancamentoFiscal: "ok", reinf: "ok", dcftWeb: "ok", mit: "ok" },
-      marco: emptyObrigacoes(),
+      marco: { lancamentoFiscal: "ok", reinf: "ok", dcftWeb: "ok", mit: "ok" },
+      junho: emptyObrigacoes(),
+      setembro: emptyObrigacoes(),
+      dezembro: emptyObrigacoes(),
     },
   },
 ];

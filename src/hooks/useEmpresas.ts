@@ -1,28 +1,65 @@
 import { useState, useEffect, useCallback } from "react";
-import { Empresa, StatusExtrato } from "@/types/fiscal";
+import { Empresa, StatusExtrato, MesesData, ObrigacoesData } from "@/types/fiscal";
 import { SEED_DATA } from "@/data/seed";
 
 const STORAGE_KEY = "controle_fiscal_empresas";
 
-// Migra dados antigos para o novo formato
+const emptyMes = () => ({
+  extratoEnviado: "nao" as StatusExtrato,
+  faturamentoNacional: 0,
+  faturamentoNotaFiscal: 0,
+  faturamentoExterior: 0,
+  faturamentoTotal: 0,
+  distribuicaoLucros: 0,
+});
+
+const emptyObrigacoes = () => ({
+  lancamentoFiscal: "pendente" as const,
+  reinf: "pendente" as const,
+  dcftWeb: "pendente" as const,
+  mit: "pendente" as const,
+});
+
+// Migra dados antigos para o novo formato com 12 meses
 function migrateEmpresa(empresa: any): Empresa {
   const migrateMes = (mes: any) => ({
-    extratoEnviado: mes.extratoEnviado ?? (mes.recebimentoExtrato ? "sim" : "nao") as StatusExtrato,
-    faturamentoNacional: mes.faturamentoNacional ?? 0,
-    faturamentoNotaFiscal: mes.faturamentoNotaFiscal ?? 0,
-    faturamentoExterior: mes.faturamentoExterior ?? 0,
-    faturamentoTotal: mes.faturamentoTotal ?? 0,
-    distribuicaoLucros: mes.distribuicaoLucros ?? (mes.faturamentoTotal ?? 0) * 0.75,
+    extratoEnviado: mes?.extratoEnviado ?? (mes?.recebimentoExtrato ? "sim" : "nao") as StatusExtrato,
+    faturamentoNacional: mes?.faturamentoNacional ?? 0,
+    faturamentoNotaFiscal: mes?.faturamentoNotaFiscal ?? 0,
+    faturamentoExterior: mes?.faturamentoExterior ?? 0,
+    faturamentoTotal: mes?.faturamentoTotal ?? 0,
+    distribuicaoLucros: mes?.distribuicaoLucros ?? (mes?.faturamentoTotal ?? 0) * 0.75,
   });
+
+  const oldMeses = empresa.meses ?? {};
+  const meses: MesesData = {
+    janeiro: migrateMes(oldMeses.janeiro),
+    fevereiro: migrateMes(oldMeses.fevereiro),
+    marco: migrateMes(oldMeses.marco),
+    abril: migrateMes(oldMeses.abril),
+    maio: migrateMes(oldMeses.maio),
+    junho: migrateMes(oldMeses.junho),
+    julho: migrateMes(oldMeses.julho),
+    agosto: migrateMes(oldMeses.agosto),
+    setembro: migrateMes(oldMeses.setembro),
+    outubro: migrateMes(oldMeses.outubro),
+    novembro: migrateMes(oldMeses.novembro),
+    dezembro: migrateMes(oldMeses.dezembro),
+  };
+
+  const oldObrigacoes = empresa.obrigacoes ?? {};
+  const obrigacoes: ObrigacoesData = {
+    marco: oldObrigacoes.marco ?? oldObrigacoes.janeiro ?? emptyObrigacoes(),
+    junho: oldObrigacoes.junho ?? emptyObrigacoes(),
+    setembro: oldObrigacoes.setembro ?? emptyObrigacoes(),
+    dezembro: oldObrigacoes.dezembro ?? emptyObrigacoes(),
+  };
 
   return {
     ...empresa,
     emiteNotaFiscal: empresa.emiteNotaFiscal ?? true,
-    meses: {
-      janeiro: migrateMes(empresa.meses?.janeiro ?? {}),
-      fevereiro: migrateMes(empresa.meses?.fevereiro ?? {}),
-      marco: migrateMes(empresa.meses?.marco ?? {}),
-    },
+    meses,
+    obrigacoes,
   };
 }
 
