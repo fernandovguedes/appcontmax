@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Plus, Shield, User, UserPlus } from "lucide-react";
+import { ArrowLeft, Key, Plus, Shield, User, UserPlus } from "lucide-react";
 import logo from "@/assets/logo_contmax.png";
 
 interface Profile {
@@ -59,6 +59,12 @@ export default function Admin() {
   const [newNome, setNewNome] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [creating, setCreating] = useState(false);
+
+  const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [resetUserId, setResetUserId] = useState("");
+  const [resetUserName, setResetUserName] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetting, setResetting] = useState(false);
 
   const fetchData = useCallback(async () => {
     const [profilesRes, rolesRes, modulesRes, userModulesRes] = await Promise.all([
@@ -143,12 +149,35 @@ export default function Admin() {
       setNewEmail("");
       setNewNome("");
       setNewPassword("");
-      // Refresh data after a short delay for trigger to create profile
       setTimeout(fetchData, 1500);
     } catch (err: any) {
       toast({ title: "Erro ao criar usuário", description: err.message, variant: "destructive" });
     } finally {
       setCreating(false);
+    }
+  };
+
+  const openResetPassword = (userId: string, userName: string) => {
+    setResetUserId(userId);
+    setResetUserName(userName);
+    setResetPassword("");
+    setResetPasswordOpen(true);
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetUserId || !resetPassword || resetPassword.length < 6) return;
+    setResetting(true);
+    try {
+      const { error } = await supabase.functions.invoke("reset-user-password", {
+        body: { user_id: resetUserId, new_password: resetPassword },
+      });
+      if (error) throw error;
+      toast({ title: "Senha alterada", description: `A senha de ${resetUserName} foi redefinida.` });
+      setResetPasswordOpen(false);
+    } catch (err: any) {
+      toast({ title: "Erro ao alterar senha", description: err.message, variant: "destructive" });
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -193,6 +222,7 @@ export default function Admin() {
                     <TableHead>Email</TableHead>
                     <TableHead className="text-center">Ativo</TableHead>
                     <TableHead className="text-center">Admin</TableHead>
+                    <TableHead className="text-center">Senha</TableHead>
                     {modules.map((m) => (
                       <TableHead key={m.id} className="text-center">{m.nome}</TableHead>
                     ))}
@@ -219,6 +249,11 @@ export default function Admin() {
                           ) : (
                             <Checkbox checked={adm} onCheckedChange={() => toggleAdmin(p.id)} />
                           )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button variant="ghost" size="icon" onClick={() => openResetPassword(p.id, p.nome || p.email)} title="Alterar senha">
+                            <Key className="h-4 w-4" />
+                          </Button>
                         </TableCell>
                         {modules.map((m) => (
                           <TableCell key={m.id} className="text-center">
@@ -279,6 +314,27 @@ export default function Admin() {
             <Button variant="outline" onClick={() => setNewUserOpen(false)}>Cancelar</Button>
             <Button onClick={handleCreateUser} disabled={creating || !newEmail || !newNome || !newPassword}>
               {creating ? "Criando..." : "Criar Usuário"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={resetPasswordOpen} onOpenChange={setResetPasswordOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Alterar Senha</DialogTitle>
+            <DialogDescription>Defina uma nova senha para {resetUserName}.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nova Senha</Label>
+              <Input type="password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} placeholder="Mínimo 6 caracteres" minLength={6} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetPasswordOpen(false)}>Cancelar</Button>
+            <Button onClick={handleResetPassword} disabled={resetting || resetPassword.length < 6}>
+              {resetting ? "Alterando..." : "Alterar Senha"}
             </Button>
           </DialogFooter>
         </DialogContent>
