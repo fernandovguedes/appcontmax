@@ -1,52 +1,51 @@
 
 
-## Permissao de edicao por modulo (somente cadastro)
+## Correcoes de Seguranca
 
 ### Resumo
-Adicionar controle granular de permissao: cada usuario podera ter permissao de "somente visualizar" ou "editar" no modulo. A restricao se aplica **somente a acoes cadastrais** (criar, editar, excluir e baixar empresas). Faturamento e demais funcoes continuam liberadas para todos os usuarios com acesso ao modulo.
+Foram encontradas vulnerabilidades que precisam ser corrigidas para proteger o sistema contra manipulacao direta das APIs.
 
-### O que muda para o usuario
-- No painel de Administracao, alem do checkbox de acesso ao modulo, aparecera um checkbox "Pode Editar" por modulo
-- Usuarios sem permissao de edicao verao a tabela normalmente, com acesso ao faturamento, mas **sem** os botoes de:
-  - Nova Empresa
-  - Editar cadastro
-  - Excluir empresa
-  - Baixar empresa
-- Admins mantem acesso total sem restricoes
+---
 
-### O que permanece liberado para todos
-- Visualizar dados da tabela
-- Acessar e editar faturamento mensal
-- Exportar Excel
-- Todas as demais funcoes do modulo
+### Correcao 1 - Edge Function `create-admin` (CRITICA)
+Atualmente, qualquer usuario autenticado pode chamar essa funcao e criar novos usuarios. A correcao adiciona verificacao do token JWT para confirmar que o chamador e admin antes de prosseguir.
+
+**Arquivo:** `supabase/functions/create-admin/index.ts`
+- Extrair o token do header Authorization
+- Verificar na tabela `user_roles` se o usuario tem role `admin`
+- Retornar 403 se nao for admin
+
+---
+
+### Correcao 2 - Politica INSERT em `profiles` (CRITICA)
+A politica atual permite que qualquer pessoa insira registros na tabela profiles. Sera restrita para que somente o proprio usuario possa inserir seu perfil (compativel com o trigger de criacao automatica).
+
+**Migracao SQL:**
+- Dropar a politica `System can insert profiles`
+- Recriar com `WITH CHECK (auth.uid() = id)` para restringir ao proprio usuario, ou usar role `service_role` no trigger
+
+---
+
+### Correcao 3 - Politica UPDATE em `user_modules`
+Adicionar politica explicita de UPDATE para que somente admins possam alterar permissoes.
+
+**Migracao SQL:**
+- Criar politica UPDATE em `user_modules` com `USING (has_role(auth.uid(), 'admin'))`
+
+---
+
+### Correcao 4 - Protecao contra senhas vazadas
+Ativar a verificacao de senhas comprometidas na configuracao de autenticacao.
 
 ---
 
 ### Detalhes tecnicos
 
-**1. Migracao de banco de dados**
-- Adicionar coluna `can_edit` (boolean, default false) na tabela `user_modules`
-- Criar funcao `has_module_edit_access(_user_id uuid, _module_slug text)` que retorna true se o usuario tem `can_edit = true` ou se eh admin
+**Arquivos alterados:**
+- `supabase/functions/create-admin/index.ts` - Adicionar verificacao de admin
+- 1 migracao SQL - Corrigir politicas RLS em `profiles` e `user_modules`
+- Configuracao de autenticacao - Ativar protecao contra senhas vazadas
 
-**2. Novo hook (`src/hooks/useModulePermissions.ts`)**
-- Consulta `user_modules` para verificar `can_edit` do usuario logado para o modulo `controle-fiscal`
-- Admins retornam `canEdit = true` automaticamente
-- Expoe `{ canEdit, loading }`
-
-**3. Pagina principal (`src/pages/Index.tsx`)**
-- Consumir o hook `useModulePermissions`
-- Condicionar exibicao do botao "Nova Empresa" a `canEdit`
-- Passar `canEdit` como prop para `EmpresaTable`
-
-**4. Tabela (`src/components/EmpresaTable.tsx`)**
-- Receber prop `canEdit: boolean`
-- Quando `canEdit = false`:
-  - Ocultar botoes: Editar cadastro, Excluir, Baixar empresa
-  - **Manter visivel**: botao de Faturamento e demais acoes
-- Nao ocultar a coluna inteira de Acoes, apenas os botoes restritos
-
-**5. Painel de Administracao (`src/pages/Admin.tsx`)**
-- Adicionar coluna "Pode Editar" na tabela de usuarios/modulos
-- Checkbox habilitado somente se o usuario tem acesso ao modulo
-- Admins mostram badge "Auto"
+**Nota sobre dados empresariais (item 4 da revisao):**
+A politica SELECT em `empresas` com `USING (true)` permite que todos os usuarios autenticados vejam todas as empresas. Isso pode ser intencional para o funcionamento do modulo de controle fiscal. Se desejar restringir, seria necessario associar empresas a usuarios, o que mudaria a logica de negocio. Essa correcao nao esta incluida neste plano.
 
