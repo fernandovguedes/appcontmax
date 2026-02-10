@@ -39,6 +39,7 @@ interface Module {
 interface UserModule {
   user_id: string;
   module_id: string;
+  can_edit: boolean;
 }
 
 export default function Admin() {
@@ -64,7 +65,7 @@ export default function Admin() {
       supabase.from("profiles").select("*").order("nome"),
       supabase.from("user_roles").select("*"),
       supabase.from("modules").select("*").order("ordem"),
-      supabase.from("user_modules").select("*"),
+      supabase.from("user_modules").select("user_id, module_id, can_edit"),
     ]);
     setProfiles((profilesRes.data as Profile[]) ?? []);
     setRoles((rolesRes.data as UserRole[]) ?? []);
@@ -88,6 +89,9 @@ export default function Admin() {
   const hasModule = (userId: string, moduleId: string) =>
     isUserAdmin(userId) || userModules.some((um) => um.user_id === userId && um.module_id === moduleId);
 
+  const hasEditPermission = (userId: string, moduleId: string) =>
+    isUserAdmin(userId) || userModules.some((um) => um.user_id === userId && um.module_id === moduleId && um.can_edit);
+
   const toggleModule = async (userId: string, moduleId: string) => {
     const exists = userModules.find((um) => um.user_id === userId && um.module_id === moduleId);
     if (exists) {
@@ -95,8 +99,18 @@ export default function Admin() {
       setUserModules((prev) => prev.filter((um) => !(um.user_id === userId && um.module_id === moduleId)));
     } else {
       const { data } = await supabase.from("user_modules").insert({ user_id: userId, module_id: moduleId }).select().single();
-      if (data) setUserModules((prev) => [...prev, data as UserModule]);
+      if (data) setUserModules((prev) => [...prev, { ...(data as any), can_edit: false } as UserModule]);
     }
+  };
+
+  const toggleCanEdit = async (userId: string, moduleId: string) => {
+    const um = userModules.find((um) => um.user_id === userId && um.module_id === moduleId);
+    if (!um) return;
+    const newVal = !um.can_edit;
+    await supabase.from("user_modules").update({ can_edit: newVal } as any).eq("user_id", userId).eq("module_id", moduleId);
+    setUserModules((prev) => prev.map((item) =>
+      item.user_id === userId && item.module_id === moduleId ? { ...item, can_edit: newVal } : item
+    ));
   };
 
   const toggleAdmin = async (userId: string) => {
@@ -182,6 +196,9 @@ export default function Admin() {
                     {modules.map((m) => (
                       <TableHead key={m.id} className="text-center">{m.nome}</TableHead>
                     ))}
+                    {modules.map((m) => (
+                      <TableHead key={`edit-${m.id}`} className="text-center">Pode Editar</TableHead>
+                    ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -211,6 +228,19 @@ export default function Admin() {
                               <Checkbox
                                 checked={hasModule(p.id, m.id)}
                                 onCheckedChange={() => toggleModule(p.id, m.id)}
+                              />
+                            )}
+                          </TableCell>
+                        ))}
+                        {modules.map((m) => (
+                          <TableCell key={`edit-${m.id}`} className="text-center">
+                            {adm ? (
+                              <Badge variant="secondary" className="text-[10px]">Auto</Badge>
+                            ) : (
+                              <Checkbox
+                                checked={hasEditPermission(p.id, m.id)}
+                                disabled={!hasModule(p.id, m.id)}
+                                onCheckedChange={() => toggleCanEdit(p.id, m.id)}
                               />
                             )}
                           </TableCell>
