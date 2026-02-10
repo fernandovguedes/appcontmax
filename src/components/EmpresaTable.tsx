@@ -6,9 +6,10 @@ import { FaturamentoPopover } from "@/components/FaturamentoPopover";
 import { ReinfAlert } from "@/components/ReinfAlert";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Pencil, Trash2, FileText, FileX, DollarSign } from "lucide-react";
+import { Pencil, Trash2, FileText, FileX, DollarSign, Archive, RotateCcw } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { format } from "date-fns";
 
 interface EmpresaTableProps {
   empresas: Empresa[];
@@ -16,6 +17,8 @@ interface EmpresaTableProps {
   onEdit: (empresa: Empresa) => void;
   onFaturamento: (empresa: Empresa) => void;
   onDelete: (id: string) => void;
+  onBaixar: (empresa: Empresa) => void;
+  onReativar: (empresa: Empresa) => void;
   onStatusChange: (empresaId: string, mesTrimestre: typeof MESES_FECHAMENTO_TRIMESTRE[number], campo: keyof Empresa["obrigacoes"]["marco"], valor: StatusEntrega) => void;
   onExtratoChange: (empresaId: string, mes: MesKey, valor: StatusExtrato) => void;
   onMesFieldChange: (empresaId: string, mes: MesKey, campo: string, valor: any) => void;
@@ -36,7 +39,7 @@ function calcularDistribuicaoTrimestral(empresa: Empresa, mesFechamento: MesKey)
   return totalFaturamento * 0.75;
 }
 
-export function EmpresaTable({ empresas, mesSelecionado, onEdit, onFaturamento, onDelete, onStatusChange, onExtratoChange, onMesFieldChange }: EmpresaTableProps) {
+export function EmpresaTable({ empresas, mesSelecionado, onEdit, onFaturamento, onDelete, onBaixar, onReativar, onStatusChange, onExtratoChange, onMesFieldChange }: EmpresaTableProps) {
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
   const mesTrimestre = getMesFechamentoTrimestre(mesSelecionado);
   const isDctfPos = isMesDctfPosFechamento(mesSelecionado);
@@ -96,7 +99,16 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onFaturamento, 
             return (
               <TableRow key={empresa.id} className={temAlerta || temAlertaTrimestral ? "bg-destructive/5" : ""}>
                 <TableCell className="font-medium">{empresa.numero}</TableCell>
-                <TableCell className="font-medium max-w-[180px] truncate">{empresa.nome}</TableCell>
+                <TableCell className="font-medium max-w-[180px] truncate">
+                  <div className="flex items-center gap-2">
+                    <span className={empresa.dataBaixa ? "text-destructive" : ""}>{empresa.nome}</span>
+                    {empresa.dataBaixa && (
+                      <Badge variant="destructive" className="text-[9px] px-1.5 whitespace-nowrap">
+                        BAIXADA EM {format(new Date(empresa.dataBaixa), "dd/MM/yyyy")}
+                      </Badge>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell className="text-center">
                   <Badge variant={empresa.regimeTributario === "simples_nacional" ? "secondary" : "outline"} className="text-[10px] px-1.5">
                     {empresa.regimeTributario === "simples_nacional" ? "SN" : "LP"}
@@ -215,6 +227,15 @@ export function EmpresaTable({ empresas, mesSelecionado, onEdit, onFaturamento, 
                     <Button variant="ghost" size="icon" onClick={() => onEdit(empresa)} title="Editar">
                       <Pencil className="h-4 w-4" />
                     </Button>
+                    {empresa.dataBaixa ? (
+                      <Button variant="ghost" size="icon" onClick={() => onReativar(empresa)} title="Reativar empresa" className="text-success hover:text-success">
+                        <RotateCcw className="h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" size="icon" onClick={() => onBaixar(empresa)} title="Baixar empresa" className="text-warning hover:text-warning">
+                        <Archive className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => onDelete(empresa.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
