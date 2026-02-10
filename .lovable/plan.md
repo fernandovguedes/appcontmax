@@ -1,51 +1,39 @@
 
 
-## Correcoes de Seguranca
+## Alterar Senha de Usuarios (pelo Admin)
 
-### Resumo
-Foram encontradas vulnerabilidades que precisam ser corrigidas para proteger o sistema contra manipulacao direta das APIs.
-
----
-
-### Correcao 1 - Edge Function `create-admin` (CRITICA)
-Atualmente, qualquer usuario autenticado pode chamar essa funcao e criar novos usuarios. A correcao adiciona verificacao do token JWT para confirmar que o chamador e admin antes de prosseguir.
-
-**Arquivo:** `supabase/functions/create-admin/index.ts`
-- Extrair o token do header Authorization
-- Verificar na tabela `user_roles` se o usuario tem role `admin`
-- Retornar 403 se nao for admin
+### O que sera feito
+Adicionar um botao na pagina de Administracao que permite ao admin redefinir a senha de qualquer usuario do sistema.
 
 ---
 
-### Correcao 2 - Politica INSERT em `profiles` (CRITICA)
-A politica atual permite que qualquer pessoa insira registros na tabela profiles. Sera restrita para que somente o proprio usuario possa inserir seu perfil (compativel com o trigger de criacao automatica).
+### Implementacao
 
-**Migracao SQL:**
-- Dropar a politica `System can insert profiles`
-- Recriar com `WITH CHECK (auth.uid() = id)` para restringir ao proprio usuario, ou usar role `service_role` no trigger
+**1. Nova Edge Function `reset-user-password`**
 
----
+Criar uma nova funcao backend em `supabase/functions/reset-user-password/index.ts` que:
+- Valida o token JWT do chamador (mesmo padrao do `create-admin`)
+- Verifica se o chamador tem role `admin` na tabela `user_roles`
+- Recebe `user_id` e `new_password` no body
+- Usa `supabase.auth.admin.updateUserById()` com o service role para alterar a senha
+- Retorna 403 se nao for admin, 400 se faltar dados
 
-### Correcao 3 - Politica UPDATE em `user_modules`
-Adicionar politica explicita de UPDATE para que somente admins possam alterar permissoes.
+**2. Alteracao na pagina Admin (`src/pages/Admin.tsx`)**
 
-**Migracao SQL:**
-- Criar politica UPDATE em `user_modules` com `USING (has_role(auth.uid(), 'admin'))`
-
----
-
-### Correcao 4 - Protecao contra senhas vazadas
-Ativar a verificacao de senhas comprometidas na configuracao de autenticacao.
-
----
+- Adicionar um botao com icone de chave (Key do lucide-react) em cada linha da tabela de usuarios
+- Ao clicar, abre um Dialog simples pedindo a nova senha (minimo 6 caracteres)
+- O dialog chama `supabase.functions.invoke("reset-user-password", { body: { user_id, new_password } })`
+- Exibe toast de sucesso ou erro
 
 ### Detalhes tecnicos
 
-**Arquivos alterados:**
-- `supabase/functions/create-admin/index.ts` - Adicionar verificacao de admin
-- 1 migracao SQL - Corrigir politicas RLS em `profiles` e `user_modules`
-- Configuracao de autenticacao - Ativar protecao contra senhas vazadas
+**Novo arquivo:** `supabase/functions/reset-user-password/index.ts`
+- Segue exatamente o mesmo padrao de autenticacao do `create-admin`
+- Usa `supabase.auth.admin.updateUserById(user_id, { password: new_password })` via service role
 
-**Nota sobre dados empresariais (item 4 da revisao):**
-A politica SELECT em `empresas` com `USING (true)` permite que todos os usuarios autenticados vejam todas as empresas. Isso pode ser intencional para o funcionamento do modulo de controle fiscal. Se desejar restringir, seria necessario associar empresas a usuarios, o que mudaria a logica de negocio. Essa correcao nao esta incluida neste plano.
+**Arquivo editado:** `src/pages/Admin.tsx`
+- Novo estado: `resetPasswordOpen`, `resetUserId`, `resetPassword`, `resetting`
+- Nova funcao `handleResetPassword`
+- Novo Dialog com campo de senha
+- Botao com icone Key na coluna de acoes (apos a coluna de Admin)
 
