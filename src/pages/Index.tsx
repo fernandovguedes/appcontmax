@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import logo from "@/assets/logo_contmax.png";
+import { useModulePermissions } from "@/hooks/useModulePermissions";
 
 const MES_INDEX: Record<MesKey, number> = {
   janeiro: 0, fevereiro: 1, marco: 2,
@@ -54,6 +55,7 @@ const Index = () => {
   const navigate = useNavigate();
   const { empresas, loading, addEmpresa, updateEmpresa, deleteEmpresa, baixarEmpresa, reativarEmpresa } = useEmpresas();
   const { signOut } = useAuth();
+  const { canEdit } = useModulePermissions("controle-fiscal");
   const [mesSelecionado, setMesSelecionado] = useState<MesKey>("janeiro");
   const [search, setSearch] = useState("");
   const [regimeFilter, setRegimeFilter] = useState<RegimeTributario | "todos">("todos");
@@ -191,9 +193,11 @@ const Index = () => {
             <Button variant="outline" size="sm" onClick={() => exportToExcel(filtered, mesSelecionado)}>
               <Download className="mr-1 h-4 w-4" /> Excel
             </Button>
-            <Button onClick={handleNew} className="bg-accent text-accent-foreground hover:bg-accent/90">
-              <Plus className="mr-1 h-4 w-4" /> Nova Empresa
-            </Button>
+            {canEdit && (
+              <Button onClick={handleNew} className="bg-accent text-accent-foreground hover:bg-accent/90">
+                <Plus className="mr-1 h-4 w-4" /> Nova Empresa
+              </Button>
+            )}
             <Button variant="ghost" size="icon" onClick={signOut} title="Sair">
               <LogOut className="h-4 w-4" />
             </Button>
@@ -265,6 +269,7 @@ const Index = () => {
         <EmpresaTable
           empresas={filtered}
           mesSelecionado={mesSelecionado}
+          canEdit={canEdit}
           onEdit={handleEdit}
           onFaturamento={handleFaturamento}
           onDelete={(id) => {

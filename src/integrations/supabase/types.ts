@@ -127,18 +127,21 @@ export type Database = {
       }
       user_modules: {
         Row: {
+          can_edit: boolean
           created_at: string
           id: string
           module_id: string
           user_id: string
         }
         Insert: {
+          can_edit?: boolean
           created_at?: string
           id?: string
           module_id: string
           user_id: string
         }
         Update: {
+          can_edit?: boolean
           created_at?: string
           id?: string
           module_id?: string
@@ -178,6 +181,10 @@ export type Database = {
     }
     Functions: {
       has_module_access: {
+        Args: { _module_slug: string; _user_id: string }
+        Returns: boolean
+      }
+      has_module_edit_access: {
         Args: { _module_slug: string; _user_id: string }
         Returns: boolean
       }
