@@ -19,6 +19,7 @@ export type Database = {
           cnpj: string
           created_at: string
           data_abertura: string | null
+          data_baixa: string | null
           data_cadastro: string
           emite_nota_fiscal: boolean
           id: string
@@ -34,6 +35,7 @@ export type Database = {
           cnpj: string
           created_at?: string
           data_abertura?: string | null
+          data_baixa?: string | null
           data_cadastro?: string
           emite_nota_fiscal?: boolean
           id?: string
@@ -49,6 +51,7 @@ export type Database = {
           cnpj?: string
           created_at?: string
           data_abertura?: string | null
+          data_baixa?: string | null
           data_cadastro?: string
           emite_nota_fiscal?: boolean
           id?: string

@@ -9,6 +9,7 @@ import {
   StatusExtrato,
   RegimeTributario,
   REGIME_LABELS,
+  isEmpresaBaixadaVisivel,
 } from "@/types/fiscal";
 import { DashboardSummary } from "@/components/DashboardSummary";
 import { EmpresaTable } from "@/components/EmpresaTable";
@@ -18,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Filter, LogOut, Download, AlertTriangle, FileText, ArrowLeft } from "lucide-react";
+import { Plus, Search, Filter, LogOut, Download, AlertTriangle, FileText, ArrowLeft, CalendarIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertDialog,
@@ -33,6 +34,13 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { isMesFechamentoTrimestre, getMesesTrimestre, calcularFaturamentoTrimestre, isMesDctfPosFechamento, getTrimestreFechamentoAnterior } from "@/types/fiscal";
 import { exportToExcel } from "@/lib/exportExcel";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import logo from "@/assets/logo_contmax.png";
 
 const MES_INDEX: Record<MesKey, number> = {
@@ -44,7 +52,7 @@ const MES_INDEX: Record<MesKey, number> = {
 
 const Index = () => {
   const navigate = useNavigate();
-  const { empresas, loading, addEmpresa, updateEmpresa, deleteEmpresa } = useEmpresas();
+  const { empresas, loading, addEmpresa, updateEmpresa, deleteEmpresa, baixarEmpresa, reativarEmpresa } = useEmpresas();
   const { signOut } = useAuth();
   const [mesSelecionado, setMesSelecionado] = useState<MesKey>("janeiro");
   const [search, setSearch] = useState("");
@@ -57,6 +65,8 @@ const Index = () => {
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
   const [faturamentoEmpresa, setFaturamentoEmpresa] = useState<Empresa | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; nome: string }>({ open: false, id: "", nome: "" });
+  const [baixaDialog, setBaixaDialog] = useState<{ open: boolean; empresa: Empresa | null }>({ open: false, empresa: null });
+  const [baixaDate, setBaixaDate] = useState<Date>(new Date());
 
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
   const isDctfPos = isMesDctfPosFechamento(mesSelecionado);
@@ -98,7 +108,13 @@ const Index = () => {
       matchesDctfSm = fatTrimAnterior > 0;
     }
 
-    return matchesSearch && matchesRegime && matchesMes && matchesReinf && matchesNfExterior && matchesDctfSm;
+    // Filtrar empresas baixadas: ocultar se passou do fechamento trimestral
+    let matchesBaixa = true;
+    if (e.dataBaixa) {
+      matchesBaixa = isEmpresaBaixadaVisivel(e.dataBaixa, mesSelecionado);
+    }
+
+    return matchesSearch && matchesRegime && matchesMes && matchesReinf && matchesNfExterior && matchesDctfSm && matchesBaixa;
   });
 
   const handleEdit = useCallback((empresa: Empresa) => {
@@ -255,6 +271,13 @@ const Index = () => {
             const emp = empresas.find((e) => e.id === id);
             setDeleteConfirm({ open: true, id, nome: emp?.nome ?? "" });
           }}
+          onBaixar={(empresa) => {
+            setBaixaDate(new Date());
+            setBaixaDialog({ open: true, empresa });
+          }}
+          onReativar={(empresa) => {
+            reativarEmpresa(empresa.id);
+          }}
           onStatusChange={handleStatusChange}
           onExtratoChange={handleExtratoChange}
           onMesFieldChange={handleMesFieldChange}
@@ -303,6 +326,53 @@ const Index = () => {
           onUpdate={updateEmpresa}
         />
       )}
+
+      <Dialog open={baixaDialog.open} onOpenChange={(open) => setBaixaDialog((prev) => ({ ...prev, open }))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Baixar Empresa</DialogTitle>
+            <DialogDescription>
+              Confirme a data de encerramento da empresa <strong>{baixaDialog.empresa?.nome}</strong>. Ela continuará visível até o próximo fechamento trimestral.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Data da Baixa</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !baixaDate && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {baixaDate ? format(baixaDate, "dd/MM/yyyy") : "Selecione a data"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={baixaDate}
+                  onSelect={(d) => d && setBaixaDate(d)}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBaixaDialog({ open: false, empresa: null })}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (baixaDialog.empresa) {
+                  const dateStr = format(baixaDate, "yyyy-MM-dd");
+                  baixarEmpresa(baixaDialog.empresa.id, dateStr);
+                  setBaixaDialog({ open: false, empresa: null });
+                }
+              }}
+            >
+              Confirmar Baixa
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

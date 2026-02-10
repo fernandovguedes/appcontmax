@@ -48,6 +48,7 @@ function rowToEmpresa(row: any): Empresa {
     regimeTributario: row.regime_tributario,
     emiteNotaFiscal: row.emite_nota_fiscal,
     socios: row.socios ?? [],
+    dataBaixa: row.data_baixa ?? undefined,
     meses: {
       janeiro: { ...defaultMeses.janeiro, ...rawMeses.janeiro },
       fevereiro: { ...defaultMeses.fevereiro, ...rawMeses.fevereiro },
@@ -82,6 +83,7 @@ function empresaToRow(empresa: Partial<Empresa>) {
   if (empresa.socios !== undefined) row.socios = empresa.socios;
   if (empresa.meses !== undefined) row.meses = empresa.meses;
   if (empresa.obrigacoes !== undefined) row.obrigacoes = empresa.obrigacoes;
+  if (empresa.dataBaixa !== undefined) row.data_baixa = empresa.dataBaixa;
   return row;
 }
 
@@ -191,5 +193,25 @@ export function useEmpresas() {
     setEmpresas((prev) => prev.filter((e) => e.id !== id));
   }, [toast]);
 
-  return { empresas, loading, addEmpresa, updateEmpresa, deleteEmpresa, setEmpresas, refetch: fetchEmpresas };
+  const baixarEmpresa = useCallback(async (id: string, data: string) => {
+    const { error } = await supabase.from("empresas").update({ data_baixa: data } as any).eq("id", id);
+    if (error) {
+      toast({ title: "Erro ao baixar empresa", description: error.message, variant: "destructive" });
+      return;
+    }
+    setEmpresas((prev) => prev.map((e) => (e.id === id ? { ...e, dataBaixa: data } : e)));
+    toast({ title: "Empresa baixada com sucesso" });
+  }, [toast]);
+
+  const reativarEmpresa = useCallback(async (id: string) => {
+    const { error } = await supabase.from("empresas").update({ data_baixa: null } as any).eq("id", id);
+    if (error) {
+      toast({ title: "Erro ao reativar empresa", description: error.message, variant: "destructive" });
+      return;
+    }
+    setEmpresas((prev) => prev.map((e) => (e.id === id ? { ...e, dataBaixa: undefined } : e)));
+    toast({ title: "Empresa reativada com sucesso" });
+  }, [toast]);
+
+  return { empresas, loading, addEmpresa, updateEmpresa, deleteEmpresa, baixarEmpresa, reativarEmpresa, setEmpresas, refetch: fetchEmpresas };
 }

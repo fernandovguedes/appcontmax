@@ -129,6 +129,37 @@ export interface Empresa {
   socios: Socio[];
   meses: MesesData;
   obrigacoes: ObrigacoesData;
+  dataBaixa?: string;
+}
+
+const MES_TO_INDEX: Record<MesKey, number> = {
+  janeiro: 0, fevereiro: 1, marco: 2,
+  abril: 3, maio: 4, junho: 5,
+  julho: 6, agosto: 7, setembro: 8,
+  outubro: 9, novembro: 10, dezembro: 11,
+};
+
+// Retorna o próximo mês de fechamento trimestral a partir de um mês dado
+function getProximoFechamentoTrimestral(mesIndex: number): number {
+  // Fechamentos: março(2), junho(5), setembro(8), dezembro(11)
+  const fechamentos = [2, 5, 8, 11];
+  for (const f of fechamentos) {
+    if (f >= mesIndex) return f;
+  }
+  return 2; // próximo ano, março
+}
+
+/**
+ * Verifica se uma empresa baixada ainda deve ser visível no mês selecionado.
+ * A empresa fica visível até o próximo fechamento de trimestre após a data da baixa.
+ * Exemplo: baixada em 15/02/2026 → visível até março/2026 (inclusive).
+ */
+export function isEmpresaBaixadaVisivel(dataBaixa: string, mesSelecionado: MesKey): boolean {
+  const data = new Date(dataBaixa);
+  const mesBaixa = data.getMonth(); // 0-based
+  const limiteIndex = getProximoFechamentoTrimestral(mesBaixa);
+  const mesAtualIndex = MES_TO_INDEX[mesSelecionado];
+  return mesAtualIndex <= limiteIndex;
 }
 
 // Calcula faturamento total e distribuição de lucros
