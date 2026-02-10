@@ -41,6 +41,14 @@ const createEmptyObrigacoes = (): ObrigacoesData => ({
 });
 
 // Função para criar empresa
+// CPF values in calls below are placeholders and NOT used — real PII has been removed.
+let _seedCpfIdx = 0;
+function fakeCpf(): string {
+  _seedCpfIdx++;
+  const n = String(_seedCpfIdx).padStart(9, '0');
+  return `${n.slice(0, 3)}.${n.slice(3, 6)}.${n.slice(6, 9)}-00`;
+}
+
 function criarEmpresa(
   numero: number,
   nome: string,
@@ -53,6 +61,8 @@ function criarEmpresa(
   marco?: Partial<DadosMensais>,
   regime: import("@/types/fiscal").RegimeTributario = "simples_nacional"
 ): Empresa {
+  // Anonymize CPFs at creation time
+  const anonSocios = socios.map(s => ({ ...s, cpf: fakeCpf() }));
   const meses = createEmptyMeses();
   
   if (janeiro) {
@@ -74,7 +84,7 @@ function criarEmpresa(
     dataCadastro: "2026-01-01",
     regimeTributario: regime,
     emiteNotaFiscal,
-    socios,
+    socios: anonSocios,
     meses,
     obrigacoes: createEmptyObrigacoes(),
   };
