@@ -62,6 +62,7 @@ const Index = () => {
   const [reinfFilter, setReinfFilter] = useState(false);
   const [nfFilter, setNfFilter] = useState(false);
   const [exteriorFilter, setExteriorFilter] = useState(false);
+  const [alugueisFilter, setAlugueisFilter] = useState(false);
   const [dctfSmFilter, setDctfSmFilter] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
@@ -97,11 +98,12 @@ const Index = () => {
     }
 
     let matchesNfExterior = true;
-    if (nfFilter || exteriorFilter) {
+    if (nfFilter || exteriorFilter || alugueisFilter) {
       const dados = e.meses[mesSelecionado];
       const passNf = !nfFilter || dados.faturamentoNotaFiscal > 0;
       const passExt = !exteriorFilter || dados.faturamentoExterior > 0;
-      matchesNfExterior = passNf && passExt;
+      const passAlug = !alugueisFilter || (dados.faturamentoAlugueis || 0) > 0;
+      matchesNfExterior = passNf && passExt && passAlug;
     }
 
     let matchesDctfSm = true;
@@ -228,6 +230,11 @@ const Index = () => {
               <Checkbox checked={exteriorFilter} onCheckedChange={(v) => setExteriorFilter(!!v)} />
               <FileText className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-muted-foreground">Exterior</span>
+            </label>
+            <label className="flex items-center gap-1.5 text-sm cursor-pointer border rounded-md px-3 py-1.5 bg-card hover:bg-muted/50 transition-colors">
+              <Checkbox checked={alugueisFilter} onCheckedChange={(v) => setAlugueisFilter(!!v)} />
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-muted-foreground">Aluguéis</span>
             </label>
             {isFechamento && (
               <label className="flex items-center gap-1.5 text-sm cursor-pointer border rounded-md px-3 py-1.5 bg-card hover:bg-muted/50 transition-colors">

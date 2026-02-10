@@ -21,6 +21,7 @@ export interface DadosMensais {
   faturamentoNacional: number;
   faturamentoNotaFiscal: number;
   faturamentoExterior: number;
+  faturamentoAlugueis: number;
   faturamentoTotal: number;
   distribuicaoLucros: number;
   lancadoQuestor: StatusQuestor;
@@ -164,9 +165,9 @@ export function isEmpresaBaixadaVisivel(dataBaixa: string, mesSelecionado: MesKe
 
 // Calcula faturamento total e distribuição de lucros
 export function calcularFaturamento(dados: Omit<DadosMensais, "faturamentoTotal" | "distribuicaoLucros" | "lancadoQuestor" | "dctfWebSemMovimento"> & Partial<Pick<DadosMensais, "lancadoQuestor" | "dctfWebSemMovimento">>): DadosMensais {
-  const faturamentoTotal = dados.faturamentoNacional + dados.faturamentoNotaFiscal + dados.faturamentoExterior;
+  const faturamentoTotal = dados.faturamentoNacional + dados.faturamentoNotaFiscal + dados.faturamentoExterior + (dados.faturamentoAlugueis || 0);
   const distribuicaoLucros = faturamentoTotal * 0.75;
-  return { ...dados, faturamentoTotal, distribuicaoLucros, lancadoQuestor: dados.lancadoQuestor ?? "pendente" };
+  return { ...dados, faturamentoAlugueis: dados.faturamentoAlugueis || 0, faturamentoTotal, distribuicaoLucros, lancadoQuestor: dados.lancadoQuestor ?? "pendente" };
 }
 
 // Calcula distribuição por sócio

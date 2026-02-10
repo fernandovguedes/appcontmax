@@ -8,6 +8,7 @@ const emptyMes = (): DadosMensais => ({
   faturamentoNacional: 0,
   faturamentoNotaFiscal: 0,
   faturamentoExterior: 0,
+  faturamentoAlugueis: 0,
   faturamentoTotal: 0,
   distribuicaoLucros: 0,
   lancadoQuestor: "pendente" as StatusQuestor,
