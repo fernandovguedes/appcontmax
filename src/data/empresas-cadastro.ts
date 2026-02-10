@@ -34,8 +34,12 @@ function e(n: number, nome: string, cnpj: string, dt: string, nf: boolean, socio
   };
 }
 
-function s(nome: string, pct: number, cpf: string): Socio {
-  return { nome, percentual: pct, cpf };
+// CPF values in calls below are placeholders and NOT used — real PII has been removed.
+let _extraCpfIdx = 10000;
+function s(nome: string, pct: number, _cpf?: string): Socio {
+  _extraCpfIdx++;
+  const n = String(_extraCpfIdx).padStart(9, '0');
+  return { nome, percentual: pct, cpf: `${n.slice(0, 3)}.${n.slice(3, 6)}.${n.slice(6, 9)}-00` };
 }
 
 // Empresas que NÃO estão no seed principal (sem dados de faturamento)
