@@ -49,6 +49,7 @@ export function exportToExcel(empresas: Empresa[], mesSelecionado: MesKey) {
       "Faturamento Nacional": mes.faturamentoNacional,
       "Faturamento NF": mes.faturamentoNotaFiscal,
       "Faturamento Exterior": mes.faturamentoExterior,
+      "Faturamento Aluguéis": mes.faturamentoAlugueis || 0,
       "Faturamento Total": mes.faturamentoTotal,
       "Lanç. Questor": questorLabel(mes.lancadoQuestor ?? "pendente"),
       "Dist. Lucros (75%)": mes.distribuicaoLucros,

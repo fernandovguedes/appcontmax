@@ -27,6 +27,7 @@ export function FaturamentoFormDialog({ open, onOpenChange, empresa, mesSelecion
           faturamentoNacional: updated.faturamentoNacional,
           faturamentoNotaFiscal: updated.faturamentoNotaFiscal,
           faturamentoExterior: updated.faturamentoExterior,
+          faturamentoAlugueis: updated.faturamentoAlugueis || 0,
           lancadoQuestor: updated.lancadoQuestor,
         });
       }
@@ -77,7 +78,7 @@ export function FaturamentoFormDialog({ open, onOpenChange, empresa, mesSelecion
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Fat. Nacional (R$)</Label>
               <Input type="number" value={mesData.faturamentoNacional || ""} onChange={(e) => updateField("faturamentoNacional", Number(e.target.value))} />
@@ -89,6 +90,10 @@ export function FaturamentoFormDialog({ open, onOpenChange, empresa, mesSelecion
             <div className="space-y-1">
               <Label className="text-xs">Fat. Exterior (R$)</Label>
               <Input type="number" value={mesData.faturamentoExterior || ""} onChange={(e) => updateField("faturamentoExterior", Number(e.target.value))} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Fat. Aluguéis (R$)</Label>
+              <Input type="number" value={mesData.faturamentoAlugueis || ""} onChange={(e) => updateField("faturamentoAlugueis", Number(e.target.value))} />
             </div>
           </div>
           <div className="rounded-lg border bg-muted/50 p-3 space-y-1">

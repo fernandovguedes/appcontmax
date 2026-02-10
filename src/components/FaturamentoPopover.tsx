@@ -31,6 +31,10 @@ export function FaturamentoPopover({ dados }: FaturamentoPopoverProps) {
             <span className="text-muted-foreground">Exterior</span>
             <span className="font-medium">{fmt(dados.faturamentoExterior)}</span>
           </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Aluguéis</span>
+            <span className="font-medium">{fmt(dados.faturamentoAlugueis || 0)}</span>
+          </div>
           <div className="border-t pt-1.5 flex justify-between font-semibold">
             <span>Total</span>
             <span>{fmt(dados.faturamentoTotal)}</span>
