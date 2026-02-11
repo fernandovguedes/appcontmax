@@ -36,6 +36,9 @@ export default function Portal() {
 
   const userName = user?.user_metadata?.nome || user?.email?.split("@")[0] || "";
 
+  const systemModules = modules.filter((m) => !m.slug.startsWith("clientes-"));
+  const clientModules = modules.filter((m) => m.slug.startsWith("clientes-"));
+
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
@@ -65,31 +68,67 @@ export default function Portal() {
             <p className="text-sm text-muted-foreground mt-2">Contate o administrador para obter acesso aos módulos.</p>
           </div>
         ) : (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 stagger-children">
-            {modules.map((mod) => {
-              const Icon = getModuleIcon(mod.icone);
-              const route = MODULE_ROUTES[mod.slug] ?? "#";
-              return (
-                <Card
-                  key={mod.id}
-                  className="cursor-pointer card-hover accent-bar-left overflow-hidden border-border/60"
-                  onClick={() => navigate(route)}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-xl bg-gradient-to-br from-primary to-primary/70 p-2.5 text-primary-foreground shadow-md">
-                        <Icon className="h-6 w-6" />
-                      </div>
-                      <CardTitle className="text-base">{mod.nome}</CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <CardDescription>{mod.descricao ?? "Sem descrição"}</CardDescription>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          <>
+            {/* Módulos do Sistema */}
+            {systemModules.length > 0 && (
+              <section className="mb-10">
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Módulos do Sistema</h2>
+                <div className="grid gap-5 sm:grid-cols-2 stagger-children">
+                  {systemModules.map((mod) => {
+                    const Icon = getModuleIcon(mod.icone);
+                    const route = MODULE_ROUTES[mod.slug] ?? "#";
+                    return (
+                      <Card
+                        key={mod.id}
+                        className="cursor-pointer card-hover accent-bar-left overflow-hidden border-border/60"
+                        onClick={() => navigate(route)}
+                      >
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center gap-4">
+                            <div className="rounded-xl bg-gradient-to-br from-primary to-primary/70 p-3 text-primary-foreground shadow-md">
+                              <Icon className="h-7 w-7" />
+                            </div>
+                            <CardTitle className="text-lg">{mod.nome}</CardTitle>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <CardDescription className="text-sm">{mod.descricao ?? "Sem descrição"}</CardDescription>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* Base de Clientes */}
+            {clientModules.length > 0 && (
+              <section>
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Base de Clientes</h2>
+                <div className="flex flex-col gap-3 stagger-children">
+                  {clientModules.map((mod) => {
+                    const Icon = getModuleIcon(mod.icone);
+                    const route = MODULE_ROUTES[mod.slug] ?? "#";
+                    return (
+                      <Card
+                        key={mod.id}
+                        className="cursor-pointer card-hover accent-bar-left overflow-hidden border-border/60"
+                        onClick={() => navigate(route)}
+                      >
+                        <div className="flex items-center gap-3 px-4 py-3">
+                          <div className="rounded-lg bg-gradient-to-br from-primary to-primary/70 p-2 text-primary-foreground shadow-sm">
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <span className="font-medium text-sm">{mod.nome}</span>
+                          <span className="text-xs text-muted-foreground ml-auto hidden sm:block">{mod.descricao ?? ""}</span>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+          </>
         )}
       </main>
     </div>
