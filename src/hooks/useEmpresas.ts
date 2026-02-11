@@ -131,16 +131,17 @@ export function useEmpresas(organizacaoId?: string) {
   }, [toast]);
 
   const fetchEmpresas = useCallback(async () => {
-    let query = supabase
-      .from("empresas")
-      .select("*")
-      .order("nome", { ascending: true });
-
-    if (organizacaoId) {
-      query = query.eq("organizacao_id", organizacaoId);
+    if (!organizacaoId) {
+      setEmpresas([]);
+      setLoading(false);
+      return;
     }
 
-    const { data, error } = await query;
+    const { data, error } = await supabase
+      .from("empresas")
+      .select("*")
+      .eq("organizacao_id", organizacaoId)
+      .order("nome", { ascending: true });
     if (error) {
       toast({ title: "Erro ao carregar empresas", description: error.message, variant: "destructive" });
       setLoading(false);
@@ -153,6 +154,7 @@ export function useEmpresas(organizacaoId?: string) {
         const { data: seededData } = await supabase
           .from("empresas")
           .select("*")
+          .eq("organizacao_id", organizacaoId)
           .order("nome", { ascending: true });
         setEmpresas((seededData ?? []).map(rowToEmpresa));
       }
