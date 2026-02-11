@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Empresa, MesKey, StatusEntrega, StatusExtrato, StatusQuestor, calcularDistribuicaoSocios, isMesFechamentoTrimestre, MESES_FECHAMENTO_TRIMESTRE, getMesesTrimestre, isMesDctfPosFechamento, getTrimestreFechamentoAnterior, calcularFaturamentoTrimestre } from "@/types/fiscal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge, ExtratoBadge, QuestorBadge } from "@/components/StatusBadge";
@@ -310,14 +311,17 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
         </TableBody>
       </Table>
     </div>
-    <div
-      ref={scrollbarRef}
-      onScroll={handleScrollbarScroll}
-      className="z-50 overflow-x-scroll bg-background border-t shadow-[0_-2px_6px_rgba(0,0,0,0.1)]"
-      style={{ position: 'fixed', bottom: 0, height: '20px', display: 'none' }}
-    >
-      <div ref={scrollbarContentRef} style={{ height: '1px', width: '1px' }} />
-    </div>
+    {createPortal(
+      <div
+        ref={scrollbarRef}
+        onScroll={handleScrollbarScroll}
+        className="z-[9999] overflow-x-scroll bg-background border-t shadow-[0_-2px_6px_rgba(0,0,0,0.1)]"
+        style={{ position: 'fixed', bottom: 0, height: '20px', display: 'none' }}
+      >
+        <div ref={scrollbarContentRef} style={{ height: '1px', width: '1px' }} />
+      </div>,
+      document.body
+    )}
     </div>
   );
 }
