@@ -103,7 +103,7 @@ function empresaToFullRow(e: Empresa) {
   };
 }
 
-export function useEmpresas() {
+export function useEmpresas(organizacaoId?: string) {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -131,11 +131,16 @@ export function useEmpresas() {
   }, [toast]);
 
   const fetchEmpresas = useCallback(async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from("empresas")
       .select("*")
       .order("nome", { ascending: true });
 
+    if (organizacaoId) {
+      query = query.eq("organizacao_id", organizacaoId);
+    }
+
+    const { data, error } = await query;
     if (error) {
       toast({ title: "Erro ao carregar empresas", description: error.message, variant: "destructive" });
       setLoading(false);
@@ -155,7 +160,7 @@ export function useEmpresas() {
       setEmpresas(data.map(rowToEmpresa));
     }
     setLoading(false);
-  }, [seedDatabase, toast]);
+  }, [organizacaoId, seedDatabase, toast]);
 
   useEffect(() => {
     fetchEmpresas();
@@ -167,6 +172,7 @@ export function useEmpresas() {
       dataCadastro: new Date().toISOString().split("T")[0],
     });
     if (empresa.numero) row.numero = empresa.numero;
+    if (organizacaoId) row.organizacao_id = organizacaoId;
     const { error } = await supabase.from("empresas").insert(row as any);
     if (error) {
       toast({ title: "Erro ao adicionar empresa", description: error.message, variant: "destructive" });

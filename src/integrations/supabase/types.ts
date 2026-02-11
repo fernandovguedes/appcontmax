@@ -27,6 +27,7 @@ export type Database = {
           nome: string
           numero: number
           obrigacoes: Json
+          organizacao_id: string
           regime_tributario: string
           socios: Json
           updated_at: string
@@ -43,6 +44,7 @@ export type Database = {
           nome: string
           numero?: number
           obrigacoes?: Json
+          organizacao_id: string
           regime_tributario?: string
           socios?: Json
           updated_at?: string
@@ -59,11 +61,20 @@ export type Database = {
           nome?: string
           numero?: number
           obrigacoes?: Json
+          organizacao_id?: string
           regime_tributario?: string
           socios?: Json
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "empresas_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       modules: {
         Row: {
@@ -74,6 +85,7 @@ export type Database = {
           id: string
           nome: string
           ordem: number
+          organizacao_id: string | null
           slug: string
         }
         Insert: {
@@ -84,6 +96,7 @@ export type Database = {
           id?: string
           nome: string
           ordem?: number
+          organizacao_id?: string | null
           slug: string
         }
         Update: {
@@ -94,6 +107,36 @@ export type Database = {
           id?: string
           nome?: string
           ordem?: number
+          organizacao_id?: string | null
+          slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "modules_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizacoes: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string
+          slug: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nome: string
+          slug: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string
           slug?: string
         }
         Relationships: []

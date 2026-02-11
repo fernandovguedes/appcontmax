@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -9,8 +9,9 @@ import {
   StatusExtrato,
   RegimeTributario,
   REGIME_LABELS,
-  isEmpresaBaixadaVisivel,
 } from "@/types/fiscal";
+import { filtrarEmpresasVisiveis } from "@/lib/empresaUtils";
+import { supabase } from "@/integrations/supabase/client";
 import { DashboardSummary } from "@/components/DashboardSummary";
 import { EmpresaTable } from "@/components/EmpresaTable";
 import { EmpresaFormDialog } from "@/components/EmpresaFormDialog";
@@ -53,9 +54,23 @@ const MES_INDEX: Record<MesKey, number> = {
 
 const Index = () => {
   const navigate = useNavigate();
-  const { empresas, loading, addEmpresa, updateEmpresa, deleteEmpresa, baixarEmpresa, reativarEmpresa } = useEmpresas();
   const { signOut } = useAuth();
   const { canEdit } = useModulePermissions("controle-fiscal");
+
+  // Fetch organizacao_id for this module
+  const [organizacaoId, setOrganizacaoId] = useState<string | undefined>();
+  useEffect(() => {
+    supabase
+      .from("modules")
+      .select("organizacao_id")
+      .eq("slug", "controle-fiscal")
+      .single()
+      .then(({ data }) => {
+        if (data?.organizacao_id) setOrganizacaoId(data.organizacao_id);
+      });
+  }, []);
+
+  const { empresas, loading, addEmpresa, updateEmpresa, deleteEmpresa, baixarEmpresa, reativarEmpresa } = useEmpresas(organizacaoId);
   const [mesSelecionado, setMesSelecionado] = useState<MesKey>("janeiro");
   const [search, setSearch] = useState("");
   const [regimeFilter, setRegimeFilter] = useState<RegimeTributario | "todos">("todos");
@@ -75,21 +90,12 @@ const Index = () => {
   const isDctfPos = isMesDctfPosFechamento(mesSelecionado);
   const trimestreAnterior = getTrimestreFechamentoAnterior(mesSelecionado);
 
-  const filtered = empresas.filter((e) => {
+  // Use centralized visibility filter, then apply module-specific filters
+  const visibleEmpresas = filtrarEmpresasVisiveis(empresas, mesSelecionado);
+
+  const filtered = visibleEmpresas.filter((e) => {
     const matchesSearch = e.nome.toLowerCase().includes(search.toLowerCase()) || e.cnpj.includes(search);
     const matchesRegime = regimeFilter === "todos" || e.regimeTributario === regimeFilter;
-
-    // Filtrar por início da competência
-    let matchesMes = true;
-    if (e.inicioCompetencia) {
-      const inicio = new Date(e.inicioCompetencia);
-      const anoAtual = 2026;
-      if (inicio.getFullYear() === anoAtual) {
-        matchesMes = MES_INDEX[mesSelecionado] >= inicio.getMonth();
-      } else if (inicio.getFullYear() > anoAtual) {
-        matchesMes = false;
-      }
-    }
 
     let matchesReinf = true;
     if (reinfFilter && isFechamento) {
@@ -112,13 +118,7 @@ const Index = () => {
       matchesDctfSm = fatTrimAnterior > 0;
     }
 
-    // Filtrar empresas baixadas: ocultar se passou do fechamento trimestral
-    let matchesBaixa = true;
-    if (e.dataBaixa) {
-      matchesBaixa = isEmpresaBaixadaVisivel(e.dataBaixa, mesSelecionado);
-    }
-
-    return matchesSearch && matchesRegime && matchesMes && matchesReinf && matchesNfExterior && matchesDctfSm && matchesBaixa;
+    return matchesSearch && matchesRegime && matchesReinf && matchesNfExterior && matchesDctfSm;
   });
 
   const handleEdit = useCallback((empresa: Empresa) => {

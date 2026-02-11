@@ -16,6 +16,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { ArrowLeft, Key, Plus, Shield, User, UserPlus } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import logo from "@/assets/logo_contmax.png";
 
 interface Profile {
@@ -31,6 +32,13 @@ interface UserRole {
 }
 
 interface Module {
+  id: string;
+  nome: string;
+  slug: string;
+  organizacao_id: string | null;
+}
+
+interface Organizacao {
   id: string;
   nome: string;
   slug: string;
@@ -52,6 +60,7 @@ export default function Admin() {
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [modules, setModules] = useState<Module[]>([]);
   const [userModules, setUserModules] = useState<UserModule[]>([]);
+  const [organizacoes, setOrganizacoes] = useState<Organizacao[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [newUserOpen, setNewUserOpen] = useState(false);
@@ -67,16 +76,18 @@ export default function Admin() {
   const [resetting, setResetting] = useState(false);
 
   const fetchData = useCallback(async () => {
-    const [profilesRes, rolesRes, modulesRes, userModulesRes] = await Promise.all([
+    const [profilesRes, rolesRes, modulesRes, userModulesRes, orgsRes] = await Promise.all([
       supabase.from("profiles").select("*").order("nome"),
       supabase.from("user_roles").select("*"),
       supabase.from("modules").select("*").order("ordem"),
       supabase.from("user_modules").select("user_id, module_id, can_edit"),
+      supabase.from("organizacoes").select("*").order("nome"),
     ]);
     setProfiles((profilesRes.data as Profile[]) ?? []);
     setRoles((rolesRes.data as UserRole[]) ?? []);
     setModules((modulesRes.data as Module[]) ?? []);
     setUserModules((userModulesRes.data as UserModule[]) ?? []);
+    setOrganizacoes((orgsRes.data as Organizacao[]) ?? []);
     setLoading(false);
   }, []);
 
@@ -134,6 +145,12 @@ export default function Admin() {
   const toggleAtivo = async (profile: Profile) => {
     await supabase.from("profiles").update({ ativo: !profile.ativo }).eq("id", profile.id);
     setProfiles((prev) => prev.map((p) => (p.id === profile.id ? { ...p, ativo: !p.ativo } : p)));
+  };
+
+  const updateModuleOrg = async (moduleId: string, orgId: string | null) => {
+    await supabase.from("modules").update({ organizacao_id: orgId } as any).eq("id", moduleId);
+    setModules((prev) => prev.map((m) => (m.id === moduleId ? { ...m, organizacao_id: orgId } : m)));
+    toast({ title: "Organização atualizada" });
   };
 
   const handleCreateUser = async () => {
@@ -283,6 +300,52 @@ export default function Admin() {
                       </TableRow>
                     );
                   })}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+        {/* Module Organization Assignment */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" /> Módulos e Organizações
+            </CardTitle>
+            <CardDescription>Defina qual base de clientes cada módulo utiliza.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-lg border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-primary/5 hover:bg-primary/5">
+                    <TableHead>Módulo</TableHead>
+                    <TableHead>Slug</TableHead>
+                    <TableHead>Organização</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {modules.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell className="font-medium">{m.nome}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{m.slug}</TableCell>
+                      <TableCell>
+                        <Select
+                          value={m.organizacao_id ?? "none"}
+                          onValueChange={(v) => updateModuleOrg(m.id, v === "none" ? null : v)}
+                        >
+                          <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="Nenhuma" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Nenhuma</SelectItem>
+                            {organizacoes.map((o) => (
+                              <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>
