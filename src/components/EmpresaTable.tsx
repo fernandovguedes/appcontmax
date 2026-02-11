@@ -313,8 +313,8 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
       <div
         ref={fakeScrollRef}
         onScroll={handleFakeScroll}
-        className="fixed bottom-0 z-50 overflow-x-auto border-t"
-        style={{ height: '14px', backgroundColor: 'hsl(var(--background) / 0.85)', backdropFilter: 'blur(4px)' }}
+        className="fixed bottom-0 z-50 overflow-x-auto border-t bg-background shadow-[0_-2px_6px_rgba(0,0,0,0.1)]"
+        style={{ height: '16px' }}
       >
         <div ref={fakeContentRef} style={{ height: '1px' }} />
       </div>
