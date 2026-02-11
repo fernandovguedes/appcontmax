@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 import { Empresa, MesKey, StatusEntrega, StatusExtrato, StatusQuestor, calcularDistribuicaoSocios, isMesFechamentoTrimestre, MESES_FECHAMENTO_TRIMESTRE, getMesesTrimestre, isMesDctfPosFechamento, getTrimestreFechamentoAnterior, calcularFaturamentoTrimestre } from "@/types/fiscal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge, ExtratoBadge, QuestorBadge } from "@/components/StatusBadge";
@@ -11,6 +11,7 @@ import { Pencil, Trash2, FileText, FileX, DollarSign, Archive, RotateCcw } from 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+import { FixedSyncedScrollbar } from "@/components/FixedSyncedScrollbar";
 
 interface EmpresaTableProps {
   empresas: Empresa[];
@@ -48,61 +49,12 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
   const trimestreAnterior = getTrimestreFechamentoAnterior(mesSelecionado);
   const colCount = 9 + (isFechamento ? 5 : 0) + (isDctfPos ? 1 : 0);
 
-  const wrapperRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const tableRef = useRef<HTMLTableElement>(null);
-  const scrollbarRef = useRef<HTMLDivElement>(null);
-  const scrollbarContentRef = useRef<HTMLDivElement>(null);
-  const syncing = useRef(false);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    const scrollbar = scrollbarRef.current;
-    const scrollbarContent = scrollbarContentRef.current;
-    if (!container || !scrollbar || !scrollbarContent) return;
-
-    const sync = () => {
-      const hasOverflow = container.scrollWidth > container.clientWidth;
-      if (hasOverflow) {
-        scrollbar.style.display = 'block';
-        scrollbarContent.style.width = `${container.scrollWidth}px`;
-      } else {
-        scrollbar.style.display = 'none';
-      }
-    };
-
-    sync();
-    const observer = new ResizeObserver(() => sync());
-    observer.observe(container);
-    if (tableRef.current) observer.observe(tableRef.current);
-
-    const onContainerScroll = () => {
-      if (syncing.current) return;
-      syncing.current = true;
-      scrollbar.scrollLeft = container.scrollLeft;
-      syncing.current = false;
-    };
-    const onScrollbarScroll = () => {
-      if (syncing.current) return;
-      syncing.current = true;
-      container.scrollLeft = scrollbar.scrollLeft;
-      syncing.current = false;
-    };
-
-    container.addEventListener('scroll', onContainerScroll);
-    scrollbar.addEventListener('scroll', onScrollbarScroll);
-
-    return () => {
-      observer.disconnect();
-      container.removeEventListener('scroll', onContainerScroll);
-      scrollbar.removeEventListener('scroll', onScrollbarScroll);
-    };
-  }, [isFechamento, isDctfPos, empresas.length, mesSelecionado]);
 
   return (
-    <div ref={wrapperRef} className="max-h-[calc(100vh-220px)] overflow-y-auto overflow-x-hidden rounded-lg border bg-card">
+    <div className="max-h-[calc(100vh-220px)] overflow-y-auto overflow-x-hidden rounded-lg border bg-card">
       <div ref={containerRef} className="overflow-x-auto">
-        <Table ref={tableRef} className="min-w-max">
+        <Table className="min-w-max">
           <TableHeader>
             <TableRow className="bg-primary/5 hover:bg-primary/5">
               <TableHead className="w-12">Nº</TableHead>
@@ -307,13 +259,11 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
           </TableBody>
         </Table>
       </div>
-      <div
-        ref={scrollbarRef}
-        className="sticky bottom-0 z-10 overflow-x-auto bg-background border-t shadow-[0_-2px_6px_rgba(0,0,0,0.1)]"
-        style={{ display: 'none', height: '16px' }}
-      >
-        <div ref={scrollbarContentRef} style={{ height: '1px' }} />
-      </div>
+
+      <FixedSyncedScrollbar
+        targetRef={containerRef}
+        watch={`${mesSelecionado}-${isFechamento}-${isDctfPos}-${empresas.length}`}
+      />
     </div>
   );
 }
