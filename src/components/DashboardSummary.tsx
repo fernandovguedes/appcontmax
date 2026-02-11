@@ -7,6 +7,13 @@ interface DashboardSummaryProps {
   mesSelecionado: MesKey;
 }
 
+const ICON_COLORS = {
+  neutral: "from-primary/80 to-primary/50",
+  warning: "from-amber-500 to-amber-400",
+  success: "from-emerald-600 to-emerald-400",
+  danger: "from-red-500 to-red-400",
+};
+
 export function DashboardSummary({ empresas, mesSelecionado }: DashboardSummaryProps) {
   const totalEmpresas = empresas.length;
 
@@ -17,7 +24,6 @@ export function DashboardSummary({ empresas, mesSelecionado }: DashboardSummaryP
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
   const mesFechamento = mesSelecionado as typeof MESES_FECHAMENTO_TRIMESTRE[number];
 
-  // Contar empresas com REINF obrigatória (faturamento no trimestre > 0)
   const empresasComReinf = isFechamento
     ? empresas.filter((e) => calcularFaturamentoTrimestre(e, mesFechamento) > 0)
     : [];
@@ -33,13 +39,17 @@ export function DashboardSummary({ empresas, mesSelecionado }: DashboardSummaryP
       title: "Empresas", 
       value: totalEmpresas, 
       icon: Building2, 
-      accent: false 
+      accent: false,
+      gradient: ICON_COLORS.neutral,
+      borderColor: "",
     },
     {
       title: `Extratos Enviados - ${MES_LABELS[mesSelecionado]}`,
       value: `${extratosEnviados} / ${totalEmpresas}`,
       icon: FileCheck,
       accent: extratosEnviados < totalEmpresas,
+      gradient: extratosEnviados >= totalEmpresas ? ICON_COLORS.success : ICON_COLORS.warning,
+      borderColor: extratosEnviados >= totalEmpresas ? "border-l-emerald-500" : "border-l-amber-500",
     },
   ];
 
@@ -50,23 +60,29 @@ export function DashboardSummary({ empresas, mesSelecionado }: DashboardSummaryP
         value: `✅ ${reinfOk}  ⏳ ${reinfPendente}  (de ${empresasComReinf.length})`,
         icon: FileWarning,
         accent: reinfPendente > 0,
+        gradient: reinfPendente > 0 ? ICON_COLORS.warning : ICON_COLORS.success,
+        borderColor: reinfPendente > 0 ? "border-l-amber-500" : "border-l-emerald-500",
       },
       {
         title: `DCTFWeb - ${MES_LABELS[mesSelecionado]}`,
         value: `✅ ${dcftOk}  ⏳ ${dcftPendente}  (de ${empresasComReinf.length})`,
         icon: CheckCircle2,
         accent: dcftPendente > 0,
+        gradient: dcftPendente > 0 ? ICON_COLORS.warning : ICON_COLORS.success,
+        borderColor: dcftPendente > 0 ? "border-l-amber-500" : "border-l-emerald-500",
       },
     );
   }
 
   return (
-    <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${isFechamento ? "lg:grid-cols-4" : ""}`}>
+    <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${isFechamento ? "lg:grid-cols-4" : ""} stagger-children`}>
       {cards.map((c) => (
-        <Card key={c.title} className={c.accent ? "border-accent/40 shadow-[0_0_20px_hsl(var(--accent)/0.08)]" : ""}>
+        <Card key={c.title} className={`border-l-4 ${c.borderColor || "border-l-primary/40"} transition-all hover:shadow-md`}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">{c.title}</CardTitle>
-            <c.icon className="h-4 w-4 text-muted-foreground" />
+            <div className={`rounded-full bg-gradient-to-br ${c.gradient} p-2 text-white shadow-sm`}>
+              <c.icon className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold tracking-tight">{c.value}</p>

@@ -52,11 +52,11 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
   const containerRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div className="max-h-[calc(100vh-220px)] overflow-y-auto overflow-x-hidden rounded-lg border bg-card">
+    <div className="max-h-[calc(100vh-220px)] overflow-y-auto overflow-x-hidden rounded-xl border bg-card shadow-sm table-zebra">
       <div ref={containerRef} className="overflow-x-auto">
         <Table className="min-w-max">
           <TableHeader>
-            <TableRow className="bg-primary/5 hover:bg-primary/5">
+            <TableRow className="header-gradient text-primary-foreground hover:bg-transparent [&>th]:text-primary-foreground/90 [&>th]:font-semibold">
               <TableHead className="w-12">Nº</TableHead>
               <TableHead>Empresa</TableHead>
               <TableHead className="w-20 text-center">Regime</TableHead>
