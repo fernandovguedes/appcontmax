@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState } from "react";
 import { Empresa, MesKey, StatusEntrega, StatusExtrato, StatusQuestor, calcularDistribuicaoSocios, isMesFechamentoTrimestre, MESES_FECHAMENTO_TRIMESTRE, getMesesTrimestre, isMesDctfPosFechamento, getTrimestreFechamentoAnterior, calcularFaturamentoTrimestre } from "@/types/fiscal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge, ExtratoBadge, QuestorBadge } from "@/components/StatusBadge";
@@ -51,36 +51,41 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
   const containerRef = useRef<HTMLDivElement>(null);
   const fakeScrollRef = useRef<HTMLDivElement>(null);
   const fakeContentRef = useRef<HTMLDivElement>(null);
-  const [showFakeScroll, setShowFakeScroll] = useState(false);
   const syncing = useRef(false);
+  const [hasOverflow, setHasOverflow] = useState(false);
 
-  const updateFakeScroll = useCallback(() => {
+  useEffect(() => {
+    const check = () => {
+      const c = containerRef.current;
+      if (c) setHasOverflow(c.scrollWidth > c.clientWidth);
+    };
+    check();
+    const observer = new ResizeObserver(check);
+    if (containerRef.current) observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [isFechamento, isDctfPos]);
+
+  useEffect(() => {
     const container = containerRef.current;
-    const fakeContent = fakeContentRef.current;
     const fakeScroll = fakeScrollRef.current;
-    if (!container || !fakeContent || !fakeScroll) return;
-    const hasOverflow = container.scrollWidth > container.clientWidth;
-    setShowFakeScroll(hasOverflow);
-    if (hasOverflow) {
+    const fakeContent = fakeContentRef.current;
+    if (!container || !fakeScroll || !fakeContent || !hasOverflow) return;
+
+    const sync = () => {
       fakeContent.style.width = `${container.scrollWidth}px`;
       const rect = container.getBoundingClientRect();
       fakeScroll.style.left = `${rect.left}px`;
       fakeScroll.style.width = `${rect.width}px`;
-    }
-  }, []);
-
-  useEffect(() => {
-    updateFakeScroll();
-    const observer = new ResizeObserver(updateFakeScroll);
-    if (containerRef.current) observer.observe(containerRef.current);
-    window.addEventListener('scroll', updateFakeScroll, true);
-    window.addEventListener('resize', updateFakeScroll);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('scroll', updateFakeScroll, true);
-      window.removeEventListener('resize', updateFakeScroll);
     };
-  }, [updateFakeScroll, isFechamento, isDctfPos]);
+
+    sync();
+    window.addEventListener('scroll', sync, true);
+    window.addEventListener('resize', sync);
+    return () => {
+      window.removeEventListener('scroll', sync, true);
+      window.removeEventListener('resize', sync);
+    };
+  }, [hasOverflow]);
 
   const handleContainerScroll = () => {
     if (syncing.current) return;
@@ -103,7 +108,7 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
   return (
     <>
     <div ref={containerRef} onScroll={handleContainerScroll} className="rounded-lg border bg-card overflow-x-auto">
-      <Table>
+      <Table className="min-w-max">
         <TableHeader>
           <TableRow className="bg-primary/5 hover:bg-primary/5">
             <TableHead className="w-12">Nº</TableHead>
@@ -309,7 +314,7 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
         </TableBody>
       </Table>
     </div>
-    {showFakeScroll && (
+    {hasOverflow && (
       <div
         ref={fakeScrollRef}
         onScroll={handleFakeScroll}
