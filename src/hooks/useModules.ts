@@ -11,6 +11,7 @@ export interface Module {
   icone: string | null;
   ativo: boolean;
   ordem: number;
+  organizacao_id: string | null;
 }
 
 export function useModules() {
