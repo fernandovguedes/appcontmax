@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -235,16 +235,21 @@ export default function Admin() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-primary/5 hover:bg-primary/5">
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead className="text-center">Ativo</TableHead>
-                    <TableHead className="text-center">Admin</TableHead>
-                    <TableHead className="text-center">Senha</TableHead>
+                    <TableHead rowSpan={2} className="align-bottom">Nome</TableHead>
+                    <TableHead rowSpan={2} className="align-bottom">Email</TableHead>
+                    <TableHead rowSpan={2} className="text-center align-bottom">Ativo</TableHead>
+                    <TableHead rowSpan={2} className="text-center align-bottom">Admin</TableHead>
+                    <TableHead rowSpan={2} className="text-center align-bottom">Senha</TableHead>
                     {modules.map((m) => (
-                      <TableHead key={m.id} className="text-center">{m.nome}</TableHead>
+                      <TableHead key={m.id} colSpan={2} className="text-center border-l">{m.nome}</TableHead>
                     ))}
+                  </TableRow>
+                  <TableRow className="bg-primary/5 hover:bg-primary/5">
                     {modules.map((m) => (
-                      <TableHead key={`edit-${m.id}`} className="text-center">Pode Editar</TableHead>
+                      <React.Fragment key={`sub-${m.id}`}>
+                        <TableHead className="text-center text-xs border-l">Acesso</TableHead>
+                        <TableHead className="text-center text-xs">Editar</TableHead>
+                      </React.Fragment>
                     ))}
                   </TableRow>
                 </TableHeader>
@@ -273,29 +278,29 @@ export default function Admin() {
                           </Button>
                         </TableCell>
                         {modules.map((m) => (
-                          <TableCell key={m.id} className="text-center">
-                            {adm ? (
-                              <Badge variant="secondary" className="text-[10px]">Auto</Badge>
-                            ) : (
-                              <Checkbox
-                                checked={hasModule(p.id, m.id)}
-                                onCheckedChange={() => toggleModule(p.id, m.id)}
-                              />
-                            )}
-                          </TableCell>
-                        ))}
-                        {modules.map((m) => (
-                          <TableCell key={`edit-${m.id}`} className="text-center">
-                            {adm ? (
-                              <Badge variant="secondary" className="text-[10px]">Auto</Badge>
-                            ) : (
-                              <Checkbox
-                                checked={hasEditPermission(p.id, m.id)}
-                                disabled={!hasModule(p.id, m.id)}
-                                onCheckedChange={() => toggleCanEdit(p.id, m.id)}
-                              />
-                            )}
-                          </TableCell>
+                          <React.Fragment key={`perm-${m.id}`}>
+                            <TableCell className="text-center border-l">
+                              {adm ? (
+                                <Badge variant="secondary" className="text-[10px]">Auto</Badge>
+                              ) : (
+                                <Checkbox
+                                  checked={hasModule(p.id, m.id)}
+                                  onCheckedChange={() => toggleModule(p.id, m.id)}
+                                />
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {adm ? (
+                                <Badge variant="secondary" className="text-[10px]">Auto</Badge>
+                              ) : (
+                                <Checkbox
+                                  checked={hasEditPermission(p.id, m.id)}
+                                  disabled={!hasModule(p.id, m.id)}
+                                  onCheckedChange={() => toggleCanEdit(p.id, m.id)}
+                                />
+                              )}
+                            </TableCell>
+                          </React.Fragment>
                         ))}
                       </TableRow>
                     );
