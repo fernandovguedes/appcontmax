@@ -49,7 +49,7 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
   const colCount = 9 + (isFechamento ? 5 : 0) + (isDctfPos ? 1 : 0);
 
   return (
-    <div className="rounded-lg border bg-card overflow-x-auto">
+    <div className="rounded-lg border bg-card overflow-auto max-h-[75vh]">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted hover:bg-muted">
