@@ -20,12 +20,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Plus, Search, Filter, ArrowLeft, Pencil, Trash2, Archive, RotateCcw, FileText, FileX, CalendarIcon, Users, Building2 } from "lucide-react";
+import { Plus, Search, Filter, Pencil, Trash2, Archive, RotateCcw, FileText, FileX, CalendarIcon, Users, Building2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import logo from "@/assets/logo_contmax.png";
+import { AppHeader } from "@/components/AppHeader";
+import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 
 export default function Clientes() {
   const navigate = useNavigate();
@@ -83,34 +84,26 @@ export default function Clientes() {
   }, []);
 
   if (loading || !orgInfo) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">Carregando...</p>
-      </div>
-    );
+    return <LoadingSkeleton variant="portal" />;
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/")} title="Voltar ao Portal">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <img src={logo} alt="Contmax" className="h-9" />
-            <div>
-              <h1 className="text-lg font-bold leading-tight">Clientes {orgInfo.nome}</h1>
-              <p className="text-xs text-muted-foreground">Gerenciamento da base de clientes</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={handleNew} className="bg-accent text-accent-foreground hover:bg-accent/90">
-              <Plus className="mr-1 h-4 w-4" /> Nova Empresa
-            </Button>
-          </div>
-        </div>
-      </header>
+      <AppHeader
+        title={`Clientes ${orgInfo.nome}`}
+        subtitle="Gerenciamento da base de clientes"
+        showBack
+        showLogout
+        breadcrumbs={[{ label: "Portal", href: "/" }, { label: `Clientes ${orgInfo.nome}` }]}
+        actions={
+          <Button
+            onClick={handleNew}
+            className="bg-accent text-accent-foreground hover:bg-accent/90"
+          >
+            <Plus className="mr-1 h-4 w-4" /> Nova Empresa
+          </Button>
+        }
+      />
 
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-6">
         <div className="flex items-center gap-2 flex-wrap">
@@ -140,10 +133,10 @@ export default function Clientes() {
           </div>
         </div>
 
-        <div className="rounded-lg border bg-card overflow-x-auto">
+        <div className="rounded-xl border bg-card overflow-x-auto shadow-sm table-zebra">
           <Table>
             <TableHeader>
-              <TableRow className="bg-primary/5 hover:bg-primary/5">
+              <TableRow className="header-gradient text-primary-foreground hover:bg-transparent [&>th]:text-primary-foreground/90 [&>th]:font-semibold">
                 <TableHead className="w-12">Nº</TableHead>
                 <TableHead>Empresa</TableHead>
                 <TableHead>CNPJ</TableHead>

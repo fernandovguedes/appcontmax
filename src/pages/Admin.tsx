@@ -15,9 +15,10 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Key, Plus, Shield, User, UserPlus } from "lucide-react";
+import { Key, Plus, Shield, User, UserPlus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import logo from "@/assets/logo_contmax.png";
+import { AppHeader } from "@/components/AppHeader";
+import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 
 interface Profile {
   id: string;
@@ -199,28 +200,25 @@ export default function Admin() {
   };
 
   if (roleLoading || loading) {
-    return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Carregando...</div>;
+    return <LoadingSkeleton variant="portal" />;
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <img src={logo} alt="Contmax" className="h-9" />
-            <div>
-              <h1 className="text-lg font-bold leading-tight">Administração</h1>
-              <p className="text-xs text-muted-foreground">Usuários e Permissões</p>
-            </div>
-          </div>
-          <Button onClick={() => setNewUserOpen(true)} className="bg-accent text-accent-foreground hover:bg-accent/90">
+      <AppHeader
+        title="Administração"
+        subtitle="Usuários e Permissões"
+        showBack
+        breadcrumbs={[{ label: "Portal", href: "/" }, { label: "Administração" }]}
+        actions={
+          <Button
+            onClick={() => setNewUserOpen(true)}
+            className="bg-accent text-accent-foreground hover:bg-accent/90"
+          >
             <UserPlus className="mr-1 h-4 w-4" /> Novo Usuário
           </Button>
-        </div>
-      </header>
+        }
+      />
 
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
         <Card>
@@ -231,10 +229,10 @@ export default function Admin() {
             <CardDescription>Gerencie o acesso de cada usuário aos módulos do sistema. Admins têm acesso a todos os módulos automaticamente.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="rounded-lg border overflow-x-auto">
+            <div className="rounded-xl border overflow-x-auto shadow-sm table-zebra">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-primary/5 hover:bg-primary/5">
+                  <TableRow className="header-gradient text-primary-foreground hover:bg-transparent [&>th]:text-primary-foreground/90 [&>th]:font-semibold">
                     <TableHead rowSpan={2} className="align-bottom">Nome</TableHead>
                     <TableHead rowSpan={2} className="align-bottom">Email</TableHead>
                     <TableHead rowSpan={2} className="text-center align-bottom">Ativo</TableHead>
@@ -244,7 +242,7 @@ export default function Admin() {
                       <TableHead key={m.id} colSpan={2} className="text-center border-l">{m.nome}</TableHead>
                     ))}
                   </TableRow>
-                  <TableRow className="bg-primary/5 hover:bg-primary/5">
+                  <TableRow className="header-gradient text-primary-foreground hover:bg-transparent [&>th]:text-primary-foreground/90 [&>th]:text-xs">
                     {modules.map((m) => (
                       <React.Fragment key={`sub-${m.id}`}>
                         <TableHead className="text-center text-xs border-l">Acesso</TableHead>
@@ -281,7 +279,7 @@ export default function Admin() {
                           <React.Fragment key={`perm-${m.id}`}>
                             <TableCell className="text-center border-l">
                               {adm ? (
-                                <Badge variant="secondary" className="text-[10px]">Auto</Badge>
+                                <Badge className="text-[10px] bg-accent/20 text-accent border-accent/30">Auto</Badge>
                               ) : (
                                 <Checkbox
                                   checked={hasModule(p.id, m.id)}
@@ -291,7 +289,7 @@ export default function Admin() {
                             </TableCell>
                             <TableCell className="text-center">
                               {adm ? (
-                                <Badge variant="secondary" className="text-[10px]">Auto</Badge>
+                                <Badge className="text-[10px] bg-accent/20 text-accent border-accent/30">Auto</Badge>
                               ) : (
                                 <Checkbox
                                   checked={hasEditPermission(p.id, m.id)}
@@ -319,10 +317,10 @@ export default function Admin() {
             <CardDescription>Defina qual base de clientes cada módulo utiliza.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="rounded-lg border overflow-x-auto">
+            <div className="rounded-xl border overflow-x-auto shadow-sm table-zebra">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-primary/5 hover:bg-primary/5">
+                  <TableRow className="header-gradient text-primary-foreground hover:bg-transparent [&>th]:text-primary-foreground/90 [&>th]:font-semibold">
                     <TableHead>Módulo</TableHead>
                     <TableHead>Slug</TableHead>
                     <TableHead>Organização</TableHead>

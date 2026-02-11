@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
 import { useEmpresas } from "@/hooks/useEmpresas";
-import { useAuth } from "@/hooks/useAuth";
 import {
   Empresa,
   MesKey,
@@ -18,17 +17,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, LogOut, Download, AlertTriangle, FileText, ArrowLeft } from "lucide-react";
+import { Search, Filter, Download, AlertTriangle, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Checkbox } from "@/components/ui/checkbox";
 import { isMesFechamentoTrimestre, calcularFaturamentoTrimestre, isMesDctfPosFechamento, getTrimestreFechamentoAnterior } from "@/types/fiscal";
 import { exportToExcel } from "@/lib/exportExcel";
-import logo from "@/assets/logo_contmax.png";
 import { useModulePermissions } from "@/hooks/useModulePermissions";
+import { AppHeader } from "@/components/AppHeader";
+import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 
 const Index = () => {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
   const { canEdit } = useModulePermissions("controle-fiscal");
 
   const [organizacaoId, setOrganizacaoId] = useState<string | undefined>();
@@ -136,28 +135,23 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/")} title="Voltar ao Portal">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <img src={logo} alt="Contmax" className="h-9" />
-            <div>
-              <h1 className="text-lg font-bold leading-tight">Controle Fiscal</h1>
-              <p className="text-xs text-muted-foreground">Contmax · 2026</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => exportToExcel(filtered, mesSelecionado)}>
-              <Download className="mr-1 h-4 w-4" /> Excel
-            </Button>
-            <Button variant="ghost" size="icon" onClick={signOut} title="Sair">
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </header>
+      <AppHeader
+        title="Controle Fiscal"
+        subtitle="Contmax · 2026"
+        showBack
+        showLogout
+        breadcrumbs={[{ label: "Portal", href: "/" }, { label: "Controle Fiscal" }]}
+        actions={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => exportToExcel(filtered, mesSelecionado)}
+            className="text-primary-foreground/80 hover:text-primary-foreground hover:bg-white/10"
+          >
+            <Download className="mr-1 h-4 w-4" /> Excel
+          </Button>
+        }
+      />
 
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-6">
         <DashboardSummary empresas={filtered} mesSelecionado={mesSelecionado} />
