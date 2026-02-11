@@ -4,12 +4,13 @@ import { useModules, Module } from "@/hooks/useModules";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { LogOut, Settings, FileText, LayoutDashboard } from "lucide-react";
+import { LogOut, Settings, FileText, LayoutDashboard, Users } from "lucide-react";
 import logo from "@/assets/logo_contmax.png";
 
 const ICON_MAP: Record<string, typeof FileText> = {
   FileText,
   LayoutDashboard,
+  Users,
 };
 
 function getModuleIcon(iconName: string | null) {
@@ -18,6 +19,8 @@ function getModuleIcon(iconName: string | null) {
 
 const MODULE_ROUTES: Record<string, string> = {
   "controle-fiscal": "/controle-fiscal",
+  "clientes-pg": "/clientes/pg",
+  "clientes-contmax": "/clientes/contmax",
 };
 
 export default function Portal() {
