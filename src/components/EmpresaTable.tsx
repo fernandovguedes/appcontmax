@@ -11,7 +11,7 @@ import { Pencil, Trash2, FileText, FileX, DollarSign, Archive, RotateCcw } from 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { FixedSyncedScrollbar } from "@/components/FixedSyncedScrollbar";
+import { CustomFixedScrollbar } from "@/components/CustomFixedScrollbar";
 
 interface EmpresaTableProps {
   empresas: Empresa[];
@@ -260,7 +260,7 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
         </Table>
       </div>
 
-      <FixedSyncedScrollbar
+      <CustomFixedScrollbar
         targetRef={containerRef}
         watch={`${mesSelecionado}-${isFechamento}-${isDctfPos}-${empresas.length}`}
       />
