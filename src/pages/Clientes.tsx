@@ -91,7 +91,7 @@ export default function Clientes() {
     <div className="min-h-screen bg-background">
       <AppHeader
         title={`Clientes ${orgInfo.nome}`}
-        subtitle="Gerenciamento da base de clientes"
+        subtitle={`Gerenciamento da base de clientes ${orgInfo.nome}`}
         showBack
         showLogout
         breadcrumbs={[{ label: "Portal", href: "/" }, { label: `Clientes ${orgInfo.nome}` }]}
