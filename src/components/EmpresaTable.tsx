@@ -1,3 +1,4 @@
+import { useRef, useEffect, useState, useCallback } from "react";
 import { Empresa, MesKey, StatusEntrega, StatusExtrato, StatusQuestor, calcularDistribuicaoSocios, isMesFechamentoTrimestre, MESES_FECHAMENTO_TRIMESTRE, getMesesTrimestre, isMesDctfPosFechamento, getTrimestreFechamentoAnterior, calcularFaturamentoTrimestre } from "@/types/fiscal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge, ExtratoBadge, QuestorBadge } from "@/components/StatusBadge";
@@ -45,16 +46,56 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
   const mesTrimestre = getMesFechamentoTrimestre(mesSelecionado);
   const isDctfPos = isMesDctfPosFechamento(mesSelecionado);
   const trimestreAnterior = getTrimestreFechamentoAnterior(mesSelecionado);
-
   const colCount = 9 + (isFechamento ? 5 : 0) + (isDctfPos ? 1 : 0);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const fakeScrollRef = useRef<HTMLDivElement>(null);
+  const fakeContentRef = useRef<HTMLDivElement>(null);
+  const [showFakeScroll, setShowFakeScroll] = useState(false);
+  const syncing = useRef(false);
+
+  const updateFakeScroll = useCallback(() => {
+    const container = containerRef.current;
+    const fakeContent = fakeContentRef.current;
+    if (!container || !fakeContent) return;
+    const hasOverflow = container.scrollWidth > container.clientWidth;
+    setShowFakeScroll(hasOverflow);
+    fakeContent.style.width = `${container.scrollWidth}px`;
+  }, []);
+
+  useEffect(() => {
+    updateFakeScroll();
+    const observer = new ResizeObserver(updateFakeScroll);
+    if (containerRef.current) observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [updateFakeScroll, isFechamento, isDctfPos]);
+
+  const handleContainerScroll = () => {
+    if (syncing.current) return;
+    syncing.current = true;
+    if (fakeScrollRef.current && containerRef.current) {
+      fakeScrollRef.current.scrollLeft = containerRef.current.scrollLeft;
+    }
+    syncing.current = false;
+  };
+
+  const handleFakeScroll = () => {
+    if (syncing.current) return;
+    syncing.current = true;
+    if (containerRef.current && fakeScrollRef.current) {
+      containerRef.current.scrollLeft = fakeScrollRef.current.scrollLeft;
+    }
+    syncing.current = false;
+  };
+
   return (
-    <div className="rounded-lg border bg-card overflow-auto max-h-[75vh]">
+    <>
+    <div ref={containerRef} onScroll={handleContainerScroll} className="rounded-lg border bg-card overflow-x-auto">
       <Table>
         <TableHeader>
-          <TableRow className="bg-muted hover:bg-muted">
-            <TableHead className="w-12 sticky left-0 z-30 bg-muted">Nº</TableHead>
-            <TableHead className="sticky left-12 z-30 bg-muted after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-border">Empresa</TableHead>
+          <TableRow className="bg-primary/5 hover:bg-primary/5">
+            <TableHead className="w-12">Nº</TableHead>
+            <TableHead>Empresa</TableHead>
             <TableHead className="w-20 text-center">Regime</TableHead>
             <TableHead className="w-10 text-center">NF</TableHead>
             <TableHead className="text-center">Extrato</TableHead>
@@ -73,7 +114,7 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
             {isDctfPos && (
               <TableHead className="text-center">DCTF S/Mov</TableHead>
             )}
-            <TableHead className="w-24 text-center sticky right-0 z-30 bg-muted before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-border">Ações</TableHead>
+            <TableHead className="w-24 text-center">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -99,8 +140,8 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
 
             return (
               <TableRow key={empresa.id} className={temAlerta || temAlertaTrimestral ? "bg-destructive/5" : ""}>
-                <TableCell className={`font-medium sticky left-0 z-20 ${temAlerta || temAlertaTrimestral ? "bg-red-50" : "bg-card"}`}>{empresa.numero}</TableCell>
-                <TableCell className={`font-medium max-w-[180px] truncate sticky left-12 z-20 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-border ${temAlerta || temAlertaTrimestral ? "bg-red-50" : "bg-card"}`}>
+                <TableCell className="font-medium">{empresa.numero}</TableCell>
+                <TableCell className="font-medium max-w-[180px] truncate">
                   <div className="flex items-center gap-2">
                     <span className={empresa.dataBaixa ? "text-destructive" : ""}>{empresa.nome}</span>
                     {empresa.dataBaixa && (
@@ -220,7 +261,7 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
                     )}
                   </TableCell>
                 )}
-                <TableCell className={`sticky right-0 z-20 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-border ${temAlerta || temAlertaTrimestral ? "bg-red-50" : "bg-card"}`}>
+                <TableCell>
                   <div className="flex items-center justify-center gap-1">
                     {onFaturamento && (
                       <Button variant="ghost" size="icon" onClick={() => onFaturamento(empresa)} title="Faturamento">
@@ -256,6 +297,17 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
         </TableBody>
       </Table>
     </div>
+    {showFakeScroll && (
+      <div
+        ref={fakeScrollRef}
+        onScroll={handleFakeScroll}
+        className="sticky bottom-0 z-40 overflow-x-auto bg-background/80 backdrop-blur-sm border-t"
+        style={{ height: '16px' }}
+      >
+        <div ref={fakeContentRef} style={{ height: '1px' }} />
+      </div>
+    )}
+    </>
   );
 }
 
