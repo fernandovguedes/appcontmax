@@ -1,35 +1,33 @@
 
 
-## Sticky Columns na Tabela do Controle Fiscal
+## Correcao: Barra de Rolagem Horizontal Fixa
 
-### Problema
-Nos meses de fechamento trimestral, a tabela ganha ate 5 colunas extras, forçando o usuario a descer ate o fim da tabela para encontrar a barra de rolagem horizontal. Isso prejudica a experiencia de uso.
+### Problema Raiz
+A barra de rolagem fixa nao aparece porque a deteccao de overflow (`hasOverflow`) falha por problemas de timing. O `ResizeObserver` pode disparar antes da tabela renderizar completamente as novas colunas. Como o elemento da barra so e montado quando `hasOverflow` e `true`, ele nunca aparece.
 
 ### Solucao
-Fixar as colunas de identificacao (N e Empresa) a esquerda e a coluna de Acoes a direita usando `position: sticky`. Assim, ao rolar horizontalmente, o usuario sempre ve qual empresa esta olhando e tem acesso aos botoes de acao.
+Mudar a abordagem para sempre renderizar a barra de rolagem e controlar sua visibilidade via CSS/JS, eliminando o problema de timing.
 
 ### Arquivo alterado
 Somente `src/components/EmpresaTable.tsx`.
 
 ### Detalhes tecnicos
 
-**1. Coluna N (indice) - sticky left-0**
-- Header: `sticky left-0 z-30 bg-primary/5`
-- Body: `sticky left-0 z-20 bg-card` (ou `bg-destructive/5` em linhas com alerta)
+**1. Sempre renderizar a barra**
+Remover o `{hasOverflow && ...}` condicional. A barra sera sempre montada no DOM, mas oculta via `display: none` quando nao houver overflow.
 
-**2. Coluna Empresa - sticky left-12 (48px)**
-- Header: `sticky left-12 z-30 bg-primary/5` + sombra direita sutil via pseudo-elemento `after:`
-- Body: `sticky left-12 z-20 bg-card` (ou `bg-destructive/5` em linhas com alerta) + mesma sombra
+**2. Usar refs diretas sem condicional**
+Como os refs `fakeScrollRef` e `fakeContentRef` estarao sempre no DOM, a sincronizacao de posicao/largura funcionara de forma confiavel.
 
-**3. Coluna Acoes - sticky right-0**
-- Header: `sticky right-0 z-30 bg-primary/5` + sombra esquerda sutil
-- Body: `sticky right-0 z-20 bg-card` (ou `bg-destructive/5` em linhas com alerta) + mesma sombra
+**3. Logica de visibilidade unificada**
+Um unico `useEffect` com `ResizeObserver` + listeners de scroll/resize fara:
+- Verificar se `container.scrollWidth > container.clientWidth`
+- Se sim: mostrar a barra (`display: block`), atualizar largura e posicao via `getBoundingClientRect()`
+- Se nao: esconder a barra (`display: none`)
 
-**4. Backgrounds opacos**
-Todas as celulas sticky precisam de background opaco (nao transparente) para que o conteudo das colunas intermediarias nao fique visivel por baixo durante a rolagem. Linhas com alerta usam `bg-red-50` (ou equivalente opaco) em vez de `bg-destructive/5` (que e semi-transparente).
+**4. Usar `overflow-x: scroll` em vez de `overflow-x: auto`**
+Isso garante que o track do scrollbar seja sempre visivel quando a barra esta exibida, em vez de depender do hover ou interacao.
 
-**5. Hierarquia de z-index**
-- `z-30`: celulas sticky do header (ficam acima de tudo)
-- `z-20`: celulas sticky do body
+**5. Adicionar verificacao com `requestAnimationFrame`**
+Apos mudanca de mes (deps `isFechamento`, `isDctfPos`), agendar uma re-verificacao com `requestAnimationFrame` para garantir que o DOM ja reflete as novas colunas.
 
-Nenhum outro arquivo precisa ser alterado. A mudanca e puramente visual via classes Tailwind.
