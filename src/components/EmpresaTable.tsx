@@ -52,40 +52,38 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
   const fakeScrollRef = useRef<HTMLDivElement>(null);
   const fakeContentRef = useRef<HTMLDivElement>(null);
   const syncing = useRef(false);
-  const [hasOverflow, setHasOverflow] = useState(false);
-
-  useEffect(() => {
-    const check = () => {
-      const c = containerRef.current;
-      if (c) setHasOverflow(c.scrollWidth > c.clientWidth);
-    };
-    check();
-    const observer = new ResizeObserver(check);
-    if (containerRef.current) observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, [isFechamento, isDctfPos]);
 
   useEffect(() => {
     const container = containerRef.current;
     const fakeScroll = fakeScrollRef.current;
     const fakeContent = fakeContentRef.current;
-    if (!container || !fakeScroll || !fakeContent || !hasOverflow) return;
+    if (!container || !fakeScroll || !fakeContent) return;
 
     const sync = () => {
-      fakeContent.style.width = `${container.scrollWidth}px`;
-      const rect = container.getBoundingClientRect();
-      fakeScroll.style.left = `${rect.left}px`;
-      fakeScroll.style.width = `${rect.width}px`;
+      requestAnimationFrame(() => {
+        if (!container || !fakeScroll || !fakeContent) return;
+        const isOverflowing = container.scrollWidth > container.clientWidth;
+        fakeScroll.style.display = isOverflowing ? 'block' : 'none';
+        if (isOverflowing) {
+          fakeContent.style.width = `${container.scrollWidth}px`;
+          const rect = container.getBoundingClientRect();
+          fakeScroll.style.left = `${rect.left}px`;
+          fakeScroll.style.width = `${rect.width}px`;
+        }
+      });
     };
 
     sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(container);
     window.addEventListener('scroll', sync, true);
     window.addEventListener('resize', sync);
     return () => {
+      observer.disconnect();
       window.removeEventListener('scroll', sync, true);
       window.removeEventListener('resize', sync);
     };
-  }, [hasOverflow]);
+  }, [isFechamento, isDctfPos]);
 
   const handleContainerScroll = () => {
     if (syncing.current) return;
@@ -314,16 +312,14 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
         </TableBody>
       </Table>
     </div>
-    {hasOverflow && (
-      <div
-        ref={fakeScrollRef}
-        onScroll={handleFakeScroll}
-        className="fixed bottom-0 z-50 overflow-x-auto border-t bg-background shadow-[0_-2px_6px_rgba(0,0,0,0.1)]"
-        style={{ height: '16px' }}
-      >
-        <div ref={fakeContentRef} style={{ height: '1px' }} />
-      </div>
-    )}
+    <div
+      ref={fakeScrollRef}
+      onScroll={handleFakeScroll}
+      className="fixed bottom-0 z-50 overflow-x-scroll border-t bg-background shadow-[0_-2px_6px_rgba(0,0,0,0.1)]"
+      style={{ height: '16px', display: 'none' }}
+    >
+      <div ref={fakeContentRef} style={{ height: '1px' }} />
+    </div>
     </>
   );
 }
