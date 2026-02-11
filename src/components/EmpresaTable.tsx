@@ -15,11 +15,11 @@ interface EmpresaTableProps {
   empresas: Empresa[];
   mesSelecionado: MesKey;
   canEdit?: boolean;
-  onEdit: (empresa: Empresa) => void;
-  onFaturamento: (empresa: Empresa) => void;
-  onDelete: (id: string) => void;
-  onBaixar: (empresa: Empresa) => void;
-  onReativar: (empresa: Empresa) => void;
+  onEdit?: (empresa: Empresa) => void;
+  onFaturamento?: (empresa: Empresa) => void;
+  onDelete?: (id: string) => void;
+  onBaixar?: (empresa: Empresa) => void;
+  onReativar?: (empresa: Empresa) => void;
   onStatusChange: (empresaId: string, mesTrimestre: typeof MESES_FECHAMENTO_TRIMESTRE[number], campo: keyof Empresa["obrigacoes"]["marco"], valor: StatusEntrega) => void;
   onExtratoChange: (empresaId: string, mes: MesKey, valor: StatusExtrato) => void;
   onMesFieldChange: (empresaId: string, mes: MesKey, campo: string, valor: any) => void;
@@ -222,27 +222,31 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
                 )}
                 <TableCell>
                   <div className="flex items-center justify-center gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => onFaturamento(empresa)} title="Faturamento">
-                      <DollarSign className="h-4 w-4" />
-                    </Button>
-                    {canEdit && (
-                      <>
-                        <Button variant="ghost" size="icon" onClick={() => onEdit(empresa)} title="Editar">
-                          <Pencil className="h-4 w-4" />
+                    {onFaturamento && (
+                      <Button variant="ghost" size="icon" onClick={() => onFaturamento(empresa)} title="Faturamento">
+                        <DollarSign className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canEdit && onEdit && (
+                      <Button variant="ghost" size="icon" onClick={() => onEdit(empresa)} title="Editar">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canEdit && onReativar && onBaixar && (
+                      empresa.dataBaixa ? (
+                        <Button variant="ghost" size="icon" onClick={() => onReativar(empresa)} title="Reativar empresa" className="text-success hover:text-success">
+                          <RotateCcw className="h-4 w-4" />
                         </Button>
-                        {empresa.dataBaixa ? (
-                          <Button variant="ghost" size="icon" onClick={() => onReativar(empresa)} title="Reativar empresa" className="text-success hover:text-success">
-                            <RotateCcw className="h-4 w-4" />
-                          </Button>
-                        ) : (
-                          <Button variant="ghost" size="icon" onClick={() => onBaixar(empresa)} title="Baixar empresa" className="text-warning hover:text-warning">
-                            <Archive className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => onDelete(empresa.id)}>
-                          <Trash2 className="h-4 w-4" />
+                      ) : (
+                        <Button variant="ghost" size="icon" onClick={() => onBaixar(empresa)} title="Baixar empresa" className="text-warning hover:text-warning">
+                          <Archive className="h-4 w-4" />
                         </Button>
-                      </>
+                      )
+                    )}
+                    {canEdit && onDelete && (
+                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => onDelete(empresa.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     )}
                   </div>
                 </TableCell>

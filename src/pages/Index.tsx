@@ -8,56 +8,29 @@ import {
   StatusEntrega,
   StatusExtrato,
   RegimeTributario,
-  REGIME_LABELS,
 } from "@/types/fiscal";
 import { filtrarEmpresasVisiveis } from "@/lib/empresaUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardSummary } from "@/components/DashboardSummary";
 import { EmpresaTable } from "@/components/EmpresaTable";
-import { EmpresaFormDialog } from "@/components/EmpresaFormDialog";
 import { FaturamentoFormDialog } from "@/components/FaturamentoFormDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Filter, LogOut, Download, AlertTriangle, FileText, ArrowLeft, CalendarIcon } from "lucide-react";
+import { Search, Filter, LogOut, Download, AlertTriangle, FileText, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { isMesFechamentoTrimestre, getMesesTrimestre, calcularFaturamentoTrimestre, isMesDctfPosFechamento, getTrimestreFechamentoAnterior } from "@/types/fiscal";
+import { isMesFechamentoTrimestre, calcularFaturamentoTrimestre, isMesDctfPosFechamento, getTrimestreFechamentoAnterior } from "@/types/fiscal";
 import { exportToExcel } from "@/lib/exportExcel";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import logo from "@/assets/logo_contmax.png";
 import { useModulePermissions } from "@/hooks/useModulePermissions";
-
-const MES_INDEX: Record<MesKey, number> = {
-  janeiro: 0, fevereiro: 1, marco: 2,
-  abril: 3, maio: 4, junho: 5,
-  julho: 6, agosto: 7, setembro: 8,
-  outubro: 9, novembro: 10, dezembro: 11,
-};
 
 const Index = () => {
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const { canEdit } = useModulePermissions("controle-fiscal");
 
-  // Fetch organizacao_id for this module
   const [organizacaoId, setOrganizacaoId] = useState<string | undefined>();
   useEffect(() => {
     supabase
@@ -70,7 +43,7 @@ const Index = () => {
       });
   }, []);
 
-  const { empresas, loading, addEmpresa, updateEmpresa, deleteEmpresa, baixarEmpresa, reativarEmpresa } = useEmpresas(organizacaoId);
+  const { empresas, loading, updateEmpresa } = useEmpresas(organizacaoId);
   const [mesSelecionado, setMesSelecionado] = useState<MesKey>("janeiro");
   const [search, setSearch] = useState("");
   const [regimeFilter, setRegimeFilter] = useState<RegimeTributario | "todos">("todos");
@@ -79,18 +52,12 @@ const Index = () => {
   const [exteriorFilter, setExteriorFilter] = useState(false);
   const [alugueisFilter, setAlugueisFilter] = useState(false);
   const [dctfSmFilter, setDctfSmFilter] = useState(false);
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
   const [faturamentoEmpresa, setFaturamentoEmpresa] = useState<Empresa | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; nome: string }>({ open: false, id: "", nome: "" });
-  const [baixaDialog, setBaixaDialog] = useState<{ open: boolean; empresa: Empresa | null }>({ open: false, empresa: null });
-  const [baixaDate, setBaixaDate] = useState<Date>(new Date());
 
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
   const isDctfPos = isMesDctfPosFechamento(mesSelecionado);
   const trimestreAnterior = getTrimestreFechamentoAnterior(mesSelecionado);
 
-  // Use centralized visibility filter, then apply module-specific filters
   const visibleEmpresas = filtrarEmpresasVisiveis(empresas, mesSelecionado);
 
   const filtered = visibleEmpresas.filter((e) => {
@@ -120,16 +87,6 @@ const Index = () => {
 
     return matchesSearch && matchesRegime && matchesReinf && matchesNfExterior && matchesDctfSm;
   });
-
-  const handleEdit = useCallback((empresa: Empresa) => {
-    setEditingEmpresa(empresa);
-    setFormOpen(true);
-  }, []);
-
-  const handleNew = useCallback(() => {
-    setEditingEmpresa(null);
-    setFormOpen(true);
-  }, []);
 
   const handleFaturamento = useCallback((empresa: Empresa) => {
     setFaturamentoEmpresa(empresa);
@@ -195,11 +152,6 @@ const Index = () => {
             <Button variant="outline" size="sm" onClick={() => exportToExcel(filtered, mesSelecionado)}>
               <Download className="mr-1 h-4 w-4" /> Excel
             </Button>
-            {canEdit && (
-              <Button onClick={handleNew} className="bg-accent text-accent-foreground hover:bg-accent/90">
-                <Plus className="mr-1 h-4 w-4" /> Nova Empresa
-              </Button>
-            )}
             <Button variant="ghost" size="icon" onClick={signOut} title="Sair">
               <LogOut className="h-4 w-4" />
             </Button>
@@ -276,57 +228,13 @@ const Index = () => {
         <EmpresaTable
           empresas={filtered}
           mesSelecionado={mesSelecionado}
-          canEdit={canEdit}
-          onEdit={handleEdit}
+          canEdit={false}
           onFaturamento={handleFaturamento}
-          onDelete={(id) => {
-            const emp = empresas.find((e) => e.id === id);
-            setDeleteConfirm({ open: true, id, nome: emp?.nome ?? "" });
-          }}
-          onBaixar={(empresa) => {
-            setBaixaDate(new Date());
-            setBaixaDialog({ open: true, empresa });
-          }}
-          onReativar={(empresa) => {
-            reativarEmpresa(empresa.id);
-          }}
           onStatusChange={handleStatusChange}
           onExtratoChange={handleExtratoChange}
           onMesFieldChange={handleMesFieldChange}
         />
       </main>
-
-      <AlertDialog open={deleteConfirm.open} onOpenChange={(open) => setDeleteConfirm((prev) => ({ ...prev, open }))}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir a empresa <strong>{deleteConfirm.nome}</strong>? Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                deleteEmpresa(deleteConfirm.id);
-                setDeleteConfirm({ open: false, id: "", nome: "" });
-              }}
-            >
-              Excluir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <EmpresaFormDialog
-        key={editingEmpresa?.id ?? "new"}
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        empresa={editingEmpresa}
-        onSave={addEmpresa}
-        onUpdate={updateEmpresa}
-      />
 
       {faturamentoEmpresa && (
         <FaturamentoFormDialog
@@ -338,53 +246,6 @@ const Index = () => {
           onUpdate={updateEmpresa}
         />
       )}
-
-      <Dialog open={baixaDialog.open} onOpenChange={(open) => setBaixaDialog((prev) => ({ ...prev, open }))}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Baixar Empresa</DialogTitle>
-            <DialogDescription>
-              Confirme a data de encerramento da empresa <strong>{baixaDialog.empresa?.nome}</strong>. Ela continuará visível até o próximo fechamento trimestral.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label>Data da Baixa</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !baixaDate && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {baixaDate ? format(baixaDate, "dd/MM/yyyy") : "Selecione a data"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={baixaDate}
-                  onSelect={(d) => d && setBaixaDate(d)}
-                  initialFocus
-                  className={cn("p-3 pointer-events-auto")}
-                  locale={ptBR}
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBaixaDialog({ open: false, empresa: null })}>Cancelar</Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (baixaDialog.empresa) {
-                  const dateStr = format(baixaDate, "yyyy-MM-dd");
-                  baixarEmpresa(baixaDialog.empresa.id, dateStr);
-                  setBaixaDialog({ open: false, empresa: null });
-                }
-              }}
-            >
-              Confirmar Baixa
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
