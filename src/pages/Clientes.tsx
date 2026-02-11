@@ -123,6 +123,10 @@ export default function Clientes() {
               <SelectItem value="todos">Todos os Regimes</SelectItem>
               <SelectItem value="simples_nacional">Simples Nacional</SelectItem>
               <SelectItem value="lucro_presumido">Lucro Presumido</SelectItem>
+              <SelectItem value="lucro_real">Lucro Real</SelectItem>
+              <SelectItem value="mei">MEI</SelectItem>
+              <SelectItem value="imunidade_tributaria">Imunidade Tributária</SelectItem>
+              <SelectItem value="pessoa_fisica">Pessoa Física</SelectItem>
             </SelectContent>
           </Select>
           <div className="relative w-full sm:w-72">
@@ -174,7 +178,7 @@ export default function Clientes() {
                   <TableCell className="text-sm text-muted-foreground">{empresa.cnpj}</TableCell>
                   <TableCell className="text-center">
                     <Badge variant={empresa.regimeTributario === "simples_nacional" ? "secondary" : "outline"} className="text-[10px] px-1.5">
-                      {empresa.regimeTributario === "simples_nacional" ? "SN" : "LP"}
+                      {({ simples_nacional: "SN", lucro_presumido: "LP", lucro_real: "LR", mei: "MEI", imunidade_tributaria: "IT", pessoa_fisica: "PF" } as Record<string, string>)[empresa.regimeTributario] ?? empresa.regimeTributario}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center">
@@ -232,7 +236,7 @@ export default function Clientes() {
                     </div>
                     <div>
                       <span className="text-muted-foreground">Regime</span>
-                      <p className="font-medium">{selectedEmpresa.regimeTributario === "simples_nacional" ? "Simples Nacional" : "Lucro Presumido"}</p>
+                      <p className="font-medium">{({ simples_nacional: "Simples Nacional", lucro_presumido: "Lucro Presumido", lucro_real: "Lucro Real", mei: "MEI", imunidade_tributaria: "Imunidade Tributária", pessoa_fisica: "Pessoa Física" } as Record<string, string>)[selectedEmpresa.regimeTributario] ?? selectedEmpresa.regimeTributario}</p>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Emite NF</span>

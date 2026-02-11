@@ -1,8 +1,12 @@
-export type RegimeTributario = "simples_nacional" | "lucro_presumido";
+export type RegimeTributario = "simples_nacional" | "lucro_presumido" | "lucro_real" | "mei" | "imunidade_tributaria" | "pessoa_fisica";
 
 export const REGIME_LABELS: Record<RegimeTributario, string> = {
   simples_nacional: "Simples Nacional",
   lucro_presumido: "Lucro Presumido",
+  lucro_real: "Lucro Real",
+  mei: "MEI",
+  imunidade_tributaria: "Imunidade Tributária",
+  pessoa_fisica: "Pessoa Física",
 };
 
 export interface Socio {
