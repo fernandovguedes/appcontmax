@@ -119,6 +119,10 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
                 <SelectContent>
                   <SelectItem value="simples_nacional">Simples Nacional</SelectItem>
                   <SelectItem value="lucro_presumido">Lucro Presumido</SelectItem>
+                  <SelectItem value="lucro_real">Lucro Real</SelectItem>
+                  <SelectItem value="mei">MEI</SelectItem>
+                  <SelectItem value="imunidade_tributaria">Imunidade Tributária</SelectItem>
+                  <SelectItem value="pessoa_fisica">Pessoa Física</SelectItem>
                 </SelectContent>
               </Select>
             </div>
