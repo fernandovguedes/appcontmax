@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useModulePermissions } from "@/hooks/useModulePermissions";
-import { Empresa, RegimeTributario, REGIME_LABELS } from "@/types/fiscal";
+import { Empresa, RegimeTributario, Socio } from "@/types/fiscal";
 import { supabase } from "@/integrations/supabase/client";
 import { EmpresaFormDialog } from "@/components/EmpresaFormDialog";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -18,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Plus, Search, Filter, ArrowLeft, Pencil, Trash2, Archive, RotateCcw, FileText, FileX, CalendarIcon } from "lucide-react";
+import { Plus, Search, Filter, ArrowLeft, Pencil, Trash2, Archive, RotateCcw, FileText, FileX, CalendarIcon, Users, Building2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -49,6 +51,7 @@ export default function Clientes() {
   const [regimeFilter, setRegimeFilter] = useState<RegimeTributario | "todos">("todos");
   const [formOpen, setFormOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
+  const [selectedEmpresa, setSelectedEmpresa] = useState<Empresa | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; nome: string }>({ open: false, id: "", nome: "" });
   const [baixaDialog, setBaixaDialog] = useState<{ open: boolean; empresa: Empresa | null }>({ open: false, empresa: null });
   const [baixaDate, setBaixaDate] = useState<Date>(new Date());
@@ -59,7 +62,17 @@ export default function Clientes() {
     return matchesSearch && matchesRegime;
   });
 
+  // Keep selectedEmpresa in sync with empresas state
+  useEffect(() => {
+    if (selectedEmpresa) {
+      const updated = empresas.find((e) => e.id === selectedEmpresa.id);
+      if (updated) setSelectedEmpresa(updated);
+      else setSelectedEmpresa(null);
+    }
+  }, [empresas]);
+
   const handleEdit = useCallback((empresa: Empresa) => {
+    setSelectedEmpresa(null);
     setEditingEmpresa(empresa);
     setFormOpen(true);
   }, []);
@@ -92,11 +105,9 @@ export default function Clientes() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {canEdit && (
-              <Button onClick={handleNew} className="bg-accent text-accent-foreground hover:bg-accent/90">
-                <Plus className="mr-1 h-4 w-4" /> Nova Empresa
-              </Button>
-            )}
+            <Button onClick={handleNew} className="bg-accent text-accent-foreground hover:bg-accent/90">
+              <Plus className="mr-1 h-4 w-4" /> Nova Empresa
+            </Button>
           </div>
         </div>
       </header>
@@ -135,23 +146,24 @@ export default function Clientes() {
                 <TableHead className="w-20 text-center">Regime</TableHead>
                 <TableHead className="w-10 text-center">NF</TableHead>
                 <TableHead>Início Competência</TableHead>
-                {canEdit && <TableHead className="w-24 text-center">Ações</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={canEdit ? 7 : 6} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                     Nenhuma empresa encontrada.
                   </TableCell>
                 </TableRow>
               )}
               {filtered.map((empresa) => (
-                <TableRow key={empresa.id}>
+                <TableRow key={empresa.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedEmpresa(empresa)}>
                   <TableCell className="font-medium">{empresa.numero}</TableCell>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2">
-                      <span className={empresa.dataBaixa ? "text-destructive" : ""}>{empresa.nome}</span>
+                      <span className={cn("text-primary underline-offset-2 hover:underline", empresa.dataBaixa && "text-destructive")}>
+                        {empresa.nome}
+                      </span>
                       {empresa.dataBaixa && (
                         <Badge variant="destructive" className="text-[9px] px-1.5 whitespace-nowrap">
                           BAIXADA EM {format(new Date(empresa.dataBaixa), "dd/MM/yyyy")}
@@ -182,33 +194,117 @@ export default function Clientes() {
                     </TooltipProvider>
                   </TableCell>
                   <TableCell className="text-sm">{empresa.inicioCompetencia || "—"}</TableCell>
-                  {canEdit && (
-                    <TableCell>
-                      <div className="flex items-center justify-center gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(empresa)} title="Editar">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        {empresa.dataBaixa ? (
-                          <Button variant="ghost" size="icon" onClick={() => reativarEmpresa(empresa.id)} title="Reativar empresa" className="text-success hover:text-success">
-                            <RotateCcw className="h-4 w-4" />
-                          </Button>
-                        ) : (
-                          <Button variant="ghost" size="icon" onClick={() => { setBaixaDate(new Date()); setBaixaDialog({ open: true, empresa }); }} title="Baixar empresa" className="text-warning hover:text-warning">
-                            <Archive className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setDeleteConfirm({ open: true, id: empresa.id, nome: empresa.nome })}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  )}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
       </main>
+
+      {/* Detail Sheet - opens on company name click */}
+      <Sheet open={!!selectedEmpresa} onOpenChange={(open) => { if (!open) setSelectedEmpresa(null); }}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          {selectedEmpresa && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  {selectedEmpresa.nome}
+                </SheetTitle>
+                <SheetDescription>
+                  {selectedEmpresa.cnpj}
+                  {selectedEmpresa.dataBaixa && (
+                    <Badge variant="destructive" className="ml-2 text-[9px] px-1.5">
+                      BAIXADA EM {format(new Date(selectedEmpresa.dataBaixa), "dd/MM/yyyy")}
+                    </Badge>
+                  )}
+                </SheetDescription>
+              </SheetHeader>
+
+              <div className="mt-6 space-y-6">
+                {/* Company Info */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Dados da Empresa</h3>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Nº Questor</span>
+                      <p className="font-medium">{selectedEmpresa.numero}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Regime</span>
+                      <p className="font-medium">{selectedEmpresa.regimeTributario === "simples_nacional" ? "Simples Nacional" : "Lucro Presumido"}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Emite NF</span>
+                      <p className="font-medium">{selectedEmpresa.emiteNotaFiscal ? "Sim" : "Não"}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Início Competência</span>
+                      <p className="font-medium">{selectedEmpresa.inicioCompetencia || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Sócios */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Sócios ({selectedEmpresa.socios?.length || 0})
+                  </h3>
+                  {(!selectedEmpresa.socios || selectedEmpresa.socios.length === 0) ? (
+                    <p className="text-sm text-muted-foreground">Nenhum sócio cadastrado.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {(selectedEmpresa.socios as Socio[]).map((socio, i) => (
+                        <div key={i} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                          <div>
+                            <p className="font-medium">{socio.nome || "Sem nome"}</p>
+                            {socio.cpf && <p className="text-xs text-muted-foreground">{socio.cpf}</p>}
+                          </div>
+                          <Badge variant="secondary" className="text-xs">{socio.percentual}%</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Actions */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Ações</h3>
+                  <div className="flex flex-col gap-2">
+                    <Button variant="outline" className="justify-start" onClick={() => handleEdit(selectedEmpresa)}>
+                      <Pencil className="mr-2 h-4 w-4" /> Editar Empresa
+                    </Button>
+                    {selectedEmpresa.dataBaixa ? (
+                      <Button variant="outline" className="justify-start text-success hover:text-success" onClick={() => {
+                        reativarEmpresa(selectedEmpresa.id);
+                      }}>
+                        <RotateCcw className="mr-2 h-4 w-4" /> Reativar Empresa
+                      </Button>
+                    ) : (
+                      <Button variant="outline" className="justify-start text-warning hover:text-warning" onClick={() => {
+                        setBaixaDate(new Date());
+                        setBaixaDialog({ open: true, empresa: selectedEmpresa });
+                      }}>
+                        <Archive className="mr-2 h-4 w-4" /> Baixar Empresa
+                      </Button>
+                    )}
+                    <Button variant="outline" className="justify-start text-destructive hover:text-destructive" onClick={() => {
+                      setDeleteConfirm({ open: true, id: selectedEmpresa.id, nome: selectedEmpresa.nome });
+                    }}>
+                      <Trash2 className="mr-2 h-4 w-4" /> Excluir Empresa
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       <AlertDialog open={deleteConfirm.open} onOpenChange={(open) => setDeleteConfirm((prev) => ({ ...prev, open }))}>
         <AlertDialogContent>
@@ -222,7 +318,11 @@ export default function Clientes() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => { deleteEmpresa(deleteConfirm.id); setDeleteConfirm({ open: false, id: "", nome: "" }); }}
+              onClick={() => {
+                deleteEmpresa(deleteConfirm.id);
+                setDeleteConfirm({ open: false, id: "", nome: "" });
+                setSelectedEmpresa(null);
+              }}
             >
               Excluir
             </AlertDialogAction>
