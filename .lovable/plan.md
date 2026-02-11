@@ -1,93 +1,85 @@
 
 
-## Criar Modulo "Clientes Contmax"
+# Redesign Visual Profissional (sem alterar Login)
 
-Modulo identico ao "Clientes P&G", importando a base de ~290 empresas da planilha enviada, com suporte aos novos regimes tributarios.
+## Escopo
+Redesign visual de todo o sistema **exceto a tela de login (Auth.tsx)**, que permanece como esta.
 
----
+## Estimativa: 12-20 creditos
 
-### 1. Expandir tipos de Regime Tributario
+## Mudancas Planejadas
 
-**Arquivo:** `src/types/fiscal.ts`
+### 1. CSS Global e Animacoes (`src/index.css`) - 1 credito
+- Adicionar keyframes para fade-in e slide-up
+- Classes utilitarias para gradientes e glass-morphism
+- Transicoes suaves globais para hover em cards e botoes
 
-Atualizar o tipo `RegimeTributario` para incluir os novos regimes encontrados na planilha:
+### 2. Componentes Base - 1-2 creditos
+- **`src/components/AppHeader.tsx`** (novo): Header reutilizavel com gradiente escuro, breadcrumbs, avatar do usuario com iniciais, animacao de entrada
+- **`src/components/LoadingSkeleton.tsx`** (novo): Skeletons animados (pulse) substituindo os textos "Carregando..."
 
-- `lucro_real`
-- `mei`
-- `imunidade_tributaria`
-- `pessoa_fisica`
+### 3. Portal de Modulos (`src/pages/Portal.tsx`) - 2-3 creditos
+- Header com gradiente e saudacao personalizada
+- Cards com faixa lateral colorida (accent bar), icone em container gradiente
+- Hover com elevacao e escala sutil
+- Usar AppHeader
 
-Atualizar tambem o `REGIME_LABELS` com os labels correspondentes.
+### 4. Dashboard e Cards (`src/components/DashboardSummary.tsx`) - 2-3 creditos
+- Icones em circulos com fundo gradiente
+- Bordas laterais coloridas por status (verde/ambar/vermelho)
+- Numeros com destaque visual
 
----
+### 5. Tabelas (`src/components/EmpresaTable.tsx`, `src/pages/Clientes.tsx`) - 3-5 creditos
+- Header da tabela com fundo gradiente escuro
+- Zebra striping sutil nas linhas
+- Hover com transicao suave
+- Container com bordas arredondadas e sombra
+- Badges/StatusBadge mais refinados com estilo pill
 
-### 2. Atualizar formulario e filtros com novos regimes
+### 6. Pagina Admin (`src/pages/Admin.tsx`) - 1-2 creditos
+- Usar AppHeader
+- Tabela de permissoes com header sticky e visual mais limpo
+- Badges "Auto" com estilo dourado
 
-**Arquivos:**
-- `src/components/EmpresaFormDialog.tsx` -- adicionar as novas opcoes no Select de regime
-- `src/pages/Clientes.tsx` -- adicionar os novos regimes no filtro e ajustar o Badge na tabela (siglas: LR, MEI, IT, PF)
+### 7. Paginas Internas (`src/pages/Index.tsx`) - 1-2 creditos
+- Usar AppHeader com breadcrumbs
+- Aplicar LoadingSkeleton
+- Melhorar layout de filtros
 
----
+### 8. Ajustes e Refinamentos - 2-4 creditos
+- Iteracoes visuais conforme feedback
 
-### 3. Criar modulo no banco de dados
+## Detalhes Tecnicos
 
-Inserir registro na tabela `modules`:
-- nome: "Clientes Contmax"
-- slug: "clientes-contmax"
-- icone: "Users"
-- organizacao_id: `d84e2150-0ae0-4462-880c-da8cec89e96a` (Contmax)
-- ordem: 2
+### Arquivos que NAO serao tocados:
+- `src/pages/Auth.tsx` (login)
+- `src/integrations/supabase/client.ts`
+- `src/integrations/supabase/types.ts`
+- `supabase/config.toml`
+- `.env`
 
----
+### Arquivos novos:
+- `src/components/AppHeader.tsx`
+- `src/components/LoadingSkeleton.tsx`
 
-### 4. Atualizar politicas RLS
+### Arquivos modificados:
+- `src/index.css`
+- `src/pages/Portal.tsx`
+- `src/pages/Index.tsx`
+- `src/pages/Clientes.tsx`
+- `src/pages/Admin.tsx`
+- `src/components/DashboardSummary.tsx`
+- `src/components/EmpresaTable.tsx`
+- `src/components/StatusBadge.tsx`
 
-Atualizar as 3 politicas RLS da tabela `empresas` (INSERT, UPDATE, DELETE) para incluir o slug `clientes-contmax` nas verificacoes de permissao, adicionando:
+### Sem mudancas no banco de dados
+Redesign puramente frontend.
 
-```sql
-OR has_module_edit_access(auth.uid(), 'clientes-contmax')
-```
-
----
-
-### 5. Importar base de clientes Contmax
-
-Criar script de dados (`src/data/seed-contmax.ts`) com os ~290 registros da planilha, mapeando:
-
-| Planilha | Campo BD |
-|---|---|
-| N (ou N/A -> 0) | numero |
-| EMPRESA | nome |
-| CNPJ | cnpj |
-| REGIME | regime_tributario (mapeado para slug) |
-| DATA DE ABERTURA | data_abertura |
-| BAIXA | data_baixa |
-| SOCIOS + % + CPF | socios (JSONB) |
-
-Mapeamento de regimes:
-- SIMPLES NACIONAL -> `simples_nacional`
-- LUCRO PRESUMIDO -> `lucro_presumido`
-- LUCRO REAL -> `lucro_real`
-- MEI - Micro Empreendedor Individual -> `mei`
-- IMUNIDADE TRIBUTARIA -> `imunidade_tributaria`
-- Pessoa fisica -> `pessoa_fisica`
-
-Usar `organizacao_id = d84e2150-0ae0-4462-880c-da8cec89e96a`.
-
-A importacao sera feita via INSERT direto no banco (ferramenta de insercao de dados), nao via seed automatico.
-
----
-
-### 6. Rota ja configurada
-
-A rota `/clientes/contmax` e o mapeamento no `Portal.tsx` (`MODULE_ROUTES["clientes-contmax"] = "/clientes/contmax"`) ja existem. A pagina `Clientes.tsx` ja carrega empresas pela organizacao via `orgSlug`, entao o modulo funcionara automaticamente.
-
----
-
-### Resumo de arquivos alterados
-
-- `src/types/fiscal.ts` -- novos regimes
-- `src/components/EmpresaFormDialog.tsx` -- opcoes de regime no formulario
-- `src/pages/Clientes.tsx` -- filtro e badges para novos regimes
-- Banco de dados: novo modulo + RLS + ~290 empresas inseridas
+### Ordem de implementacao
+1. CSS global (base para tudo)
+2. AppHeader + LoadingSkeleton (componentes reutilizaveis)
+3. Portal (hub de modulos)
+4. Index + DashboardSummary + EmpresaTable (controle fiscal)
+5. Clientes
+6. Admin
 
