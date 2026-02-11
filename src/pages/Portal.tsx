@@ -36,8 +36,8 @@ export default function Portal() {
 
   const userName = user?.user_metadata?.nome || user?.email?.split("@")[0] || "";
 
-  const systemModules = modules.filter((m) => !m.slug.startsWith("clientes-"));
-  const clientModules = modules.filter((m) => m.slug.startsWith("clientes-"));
+  const systemModules = modules.filter((m: Module) => !m.slug.startsWith("clientes-"));
+  const clientModules = modules.filter((m: Module) => m.slug.startsWith("clientes-"));
 
   return (
     <div className="min-h-screen bg-background">
