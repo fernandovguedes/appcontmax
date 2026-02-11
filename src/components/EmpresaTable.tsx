@@ -61,16 +61,27 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
     if (!container || !scrollbar || !scrollbarContent) return;
 
     const sync = () => {
-      scrollbarContent.style.width = `${container.scrollWidth}px`;
       const hasOverflow = container.scrollWidth > container.clientWidth;
-      scrollbar.style.display = hasOverflow ? 'block' : 'none';
+      if (hasOverflow) {
+        const rect = container.getBoundingClientRect();
+        scrollbar.style.display = 'block';
+        scrollbar.style.left = `${rect.left}px`;
+        scrollbar.style.width = `${rect.width}px`;
+        scrollbarContent.style.width = `${container.scrollWidth}px`;
+      } else {
+        scrollbar.style.display = 'none';
+      }
     };
 
     requestAnimationFrame(sync);
+    const interval = setInterval(sync, 200);
     const observer = new ResizeObserver(() => requestAnimationFrame(sync));
     observer.observe(container);
     if (tableRef.current) observer.observe(tableRef.current);
-    return () => observer.disconnect();
+    return () => {
+      clearInterval(interval);
+      observer.disconnect();
+    };
   }, [isFechamento, isDctfPos, empresas.length, mesSelecionado]);
 
   const handleContainerScroll = () => {
@@ -302,8 +313,8 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
     <div
       ref={scrollbarRef}
       onScroll={handleScrollbarScroll}
-      className="sticky bottom-0 z-50 overflow-x-scroll border-t bg-background shadow-[0_-2px_6px_rgba(0,0,0,0.1)]"
-      style={{ height: '20px' }}
+      className="z-50 overflow-x-scroll bg-background border-t shadow-[0_-2px_6px_rgba(0,0,0,0.1)]"
+      style={{ position: 'fixed', bottom: 0, height: '20px', display: 'none' }}
     >
       <div ref={scrollbarContentRef} style={{ height: '1px', width: '1px' }} />
     </div>
