@@ -49,64 +49,52 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
   const colCount = 9 + (isFechamento ? 5 : 0) + (isDctfPos ? 1 : 0);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const fakeScrollRef = useRef<HTMLDivElement>(null);
-  const fakeContentRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const scrollbarRef = useRef<HTMLDivElement>(null);
+  const scrollbarContentRef = useRef<HTMLDivElement>(null);
   const syncing = useRef(false);
 
   useEffect(() => {
     const container = containerRef.current;
-    const fakeScroll = fakeScrollRef.current;
-    const fakeContent = fakeContentRef.current;
-    if (!container || !fakeScroll || !fakeContent) return;
+    const scrollbar = scrollbarRef.current;
+    const scrollbarContent = scrollbarContentRef.current;
+    if (!container || !scrollbar || !scrollbarContent) return;
 
     const sync = () => {
-      requestAnimationFrame(() => {
-        if (!container || !fakeScroll || !fakeContent) return;
-        const isOverflowing = container.scrollWidth > container.clientWidth;
-        fakeScroll.style.display = isOverflowing ? 'block' : 'none';
-        if (isOverflowing) {
-          fakeContent.style.width = `${container.scrollWidth}px`;
-          const rect = container.getBoundingClientRect();
-          fakeScroll.style.left = `${rect.left}px`;
-          fakeScroll.style.width = `${rect.width}px`;
-        }
-      });
+      scrollbarContent.style.width = `${container.scrollWidth}px`;
+      const hasOverflow = container.scrollWidth > container.clientWidth;
+      scrollbar.style.display = hasOverflow ? 'block' : 'none';
     };
 
-    sync();
-    const observer = new ResizeObserver(sync);
+    requestAnimationFrame(sync);
+    const observer = new ResizeObserver(() => requestAnimationFrame(sync));
     observer.observe(container);
-    window.addEventListener('scroll', sync, true);
-    window.addEventListener('resize', sync);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('scroll', sync, true);
-      window.removeEventListener('resize', sync);
-    };
-  }, [isFechamento, isDctfPos]);
+    if (tableRef.current) observer.observe(tableRef.current);
+    return () => observer.disconnect();
+  }, [isFechamento, isDctfPos, empresas.length, mesSelecionado]);
 
   const handleContainerScroll = () => {
     if (syncing.current) return;
     syncing.current = true;
-    if (fakeScrollRef.current && containerRef.current) {
-      fakeScrollRef.current.scrollLeft = containerRef.current.scrollLeft;
+    if (scrollbarRef.current && containerRef.current) {
+      scrollbarRef.current.scrollLeft = containerRef.current.scrollLeft;
     }
     syncing.current = false;
   };
 
-  const handleFakeScroll = () => {
+  const handleScrollbarScroll = () => {
     if (syncing.current) return;
     syncing.current = true;
-    if (containerRef.current && fakeScrollRef.current) {
-      containerRef.current.scrollLeft = fakeScrollRef.current.scrollLeft;
+    if (containerRef.current && scrollbarRef.current) {
+      containerRef.current.scrollLeft = scrollbarRef.current.scrollLeft;
     }
     syncing.current = false;
   };
 
   return (
-    <>
+    <div className="flex flex-col">
     <div ref={containerRef} onScroll={handleContainerScroll} className="rounded-lg border bg-card overflow-x-auto">
-      <Table className="min-w-max">
+      <Table ref={tableRef} className="min-w-max">
         <TableHeader>
           <TableRow className="bg-primary/5 hover:bg-primary/5">
             <TableHead className="w-12">Nº</TableHead>
@@ -149,7 +137,6 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
             const sociosTrimestrais = isFechamento ? calcularDistribuicaoSocios(empresa.socios, distribuicaoTrimestral) : [];
             const temAlertaTrimestral = sociosTrimestrais.some(s => (s.distribuicaoLucros ?? 0) > LIMITE_DISTRIBUICAO_SOCIO);
 
-            // Check if REINF was obligatory in the previous trimestre (for post-fechamento columns)
             const fatTrimestreAnterior = trimestreAnterior ? calcularFaturamentoTrimestre(empresa, trimestreAnterior) : 0;
             const reinfObrigatoria = fatTrimestreAnterior > 0;
 
@@ -313,14 +300,14 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
       </Table>
     </div>
     <div
-      ref={fakeScrollRef}
-      onScroll={handleFakeScroll}
-      className="fixed bottom-0 z-50 overflow-x-scroll border-t bg-background shadow-[0_-2px_6px_rgba(0,0,0,0.1)]"
-      style={{ height: '16px', display: 'none' }}
+      ref={scrollbarRef}
+      onScroll={handleScrollbarScroll}
+      className="sticky bottom-0 z-50 overflow-x-scroll border-t bg-background shadow-[0_-2px_6px_rgba(0,0,0,0.1)]"
+      style={{ height: '20px' }}
     >
-      <div ref={fakeContentRef} style={{ height: '1px' }} />
+      <div ref={scrollbarContentRef} style={{ height: '1px', width: '1px' }} />
     </div>
-    </>
+    </div>
   );
 }
 
