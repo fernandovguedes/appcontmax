@@ -52,9 +52,9 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
     <div className="rounded-lg border bg-card overflow-x-auto">
       <Table>
         <TableHeader>
-          <TableRow className="bg-primary/5 hover:bg-primary/5">
-            <TableHead className="w-12">Nº</TableHead>
-            <TableHead>Empresa</TableHead>
+          <TableRow className="bg-muted hover:bg-muted">
+            <TableHead className="w-12 sticky left-0 z-30 bg-muted">Nº</TableHead>
+            <TableHead className="sticky left-12 z-30 bg-muted after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-border">Empresa</TableHead>
             <TableHead className="w-20 text-center">Regime</TableHead>
             <TableHead className="w-10 text-center">NF</TableHead>
             <TableHead className="text-center">Extrato</TableHead>
@@ -73,7 +73,7 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
             {isDctfPos && (
               <TableHead className="text-center">DCTF S/Mov</TableHead>
             )}
-            <TableHead className="w-24 text-center">Ações</TableHead>
+            <TableHead className="w-24 text-center sticky right-0 z-30 bg-muted before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-border">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -99,8 +99,8 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
 
             return (
               <TableRow key={empresa.id} className={temAlerta || temAlertaTrimestral ? "bg-destructive/5" : ""}>
-                <TableCell className="font-medium">{empresa.numero}</TableCell>
-                <TableCell className="font-medium max-w-[180px] truncate">
+                <TableCell className={`font-medium sticky left-0 z-20 ${temAlerta || temAlertaTrimestral ? "bg-red-50" : "bg-card"}`}>{empresa.numero}</TableCell>
+                <TableCell className={`font-medium max-w-[180px] truncate sticky left-12 z-20 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-border ${temAlerta || temAlertaTrimestral ? "bg-red-50" : "bg-card"}`}>
                   <div className="flex items-center gap-2">
                     <span className={empresa.dataBaixa ? "text-destructive" : ""}>{empresa.nome}</span>
                     {empresa.dataBaixa && (
@@ -220,7 +220,7 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
                     )}
                   </TableCell>
                 )}
-                <TableCell>
+                <TableCell className={`sticky right-0 z-20 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-border ${temAlerta || temAlertaTrimestral ? "bg-red-50" : "bg-card"}`}>
                   <div className="flex items-center justify-center gap-1">
                     {onFaturamento && (
                       <Button variant="ghost" size="icon" onClick={() => onFaturamento(empresa)} title="Faturamento">
