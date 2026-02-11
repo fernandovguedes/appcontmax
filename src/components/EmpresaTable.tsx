@@ -57,17 +57,29 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
   const updateFakeScroll = useCallback(() => {
     const container = containerRef.current;
     const fakeContent = fakeContentRef.current;
-    if (!container || !fakeContent) return;
+    const fakeScroll = fakeScrollRef.current;
+    if (!container || !fakeContent || !fakeScroll) return;
     const hasOverflow = container.scrollWidth > container.clientWidth;
     setShowFakeScroll(hasOverflow);
-    fakeContent.style.width = `${container.scrollWidth}px`;
+    if (hasOverflow) {
+      fakeContent.style.width = `${container.scrollWidth}px`;
+      const rect = container.getBoundingClientRect();
+      fakeScroll.style.left = `${rect.left}px`;
+      fakeScroll.style.width = `${rect.width}px`;
+    }
   }, []);
 
   useEffect(() => {
     updateFakeScroll();
     const observer = new ResizeObserver(updateFakeScroll);
     if (containerRef.current) observer.observe(containerRef.current);
-    return () => observer.disconnect();
+    window.addEventListener('scroll', updateFakeScroll, true);
+    window.addEventListener('resize', updateFakeScroll);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('scroll', updateFakeScroll, true);
+      window.removeEventListener('resize', updateFakeScroll);
+    };
   }, [updateFakeScroll, isFechamento, isDctfPos]);
 
   const handleContainerScroll = () => {
@@ -301,8 +313,8 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
       <div
         ref={fakeScrollRef}
         onScroll={handleFakeScroll}
-        className="sticky bottom-0 z-40 overflow-x-auto bg-background/80 backdrop-blur-sm border-t"
-        style={{ height: '16px' }}
+        className="fixed bottom-0 z-50 overflow-x-auto border-t"
+        style={{ height: '14px', backgroundColor: 'hsl(var(--background) / 0.85)', backdropFilter: 'blur(4px)' }}
       >
         <div ref={fakeContentRef} style={{ height: '1px' }} />
       </div>
