@@ -16,7 +16,7 @@ export function ReinfAlert({ empresa, mesFechamento }: ReinfAlertProps) {
       <Tooltip>
         <TooltipTrigger>
           {deveEntregar ? (
-            <AlertTriangle className="h-4 w-4 text-accent" />
+            <AlertTriangle className="h-4 w-4 text-destructive" />
           ) : (
             <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
           )}
@@ -24,7 +24,7 @@ export function ReinfAlert({ empresa, mesFechamento }: ReinfAlertProps) {
         <TooltipContent>
           {deveEntregar ? (
             <div className="text-xs">
-              <p className="font-semibold text-accent">⚠️ REINF obrigatória</p>
+               <p className="font-semibold text-destructive">⚠️ REINF obrigatória</p>
               <p>Faturamento trimestral: {faturamentoTrimestre.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
               <p className="text-muted-foreground">DCTFWeb também será exigida</p>
             </div>

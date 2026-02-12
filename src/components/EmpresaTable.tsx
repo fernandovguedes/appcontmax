@@ -208,7 +208,7 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
                     <TableCell className="text-center">
                       {reinfObrigatoria ? (
                         <div className="flex flex-col items-center gap-1">
-                          <span className="text-[10px] text-accent font-medium">REINF enviada</span>
+                          <span className="text-[10px] text-destructive font-medium">REINF enviada</span>
                           <StatusSelect
                             value={mes.dctfWebSemMovimento ?? "pendente"}
                             onChange={(v) => onMesFieldChange(empresa.id, mesSelecionado, "dctfWebSemMovimento", v)}
