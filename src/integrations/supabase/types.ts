@@ -76,6 +76,74 @@ export type Database = {
           },
         ]
       }
+      honorarios_config: {
+        Row: {
+          created_at: string
+          id: string
+          salario_minimo: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          salario_minimo?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          salario_minimo?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      honorarios_empresas: {
+        Row: {
+          contabil_percentual: number
+          created_at: string
+          emitir_nf: string
+          empresa_id: string
+          fiscal_percentual: number
+          id: string
+          meses: Json
+          nao_emitir_boleto: boolean
+          pessoal_valor: number
+          updated_at: string
+        }
+        Insert: {
+          contabil_percentual?: number
+          created_at?: string
+          emitir_nf?: string
+          empresa_id: string
+          fiscal_percentual?: number
+          id?: string
+          meses?: Json
+          nao_emitir_boleto?: boolean
+          pessoal_valor?: number
+          updated_at?: string
+        }
+        Update: {
+          contabil_percentual?: number
+          created_at?: string
+          emitir_nf?: string
+          empresa_id?: string
+          fiscal_percentual?: number
+          id?: string
+          meses?: Json
+          nao_emitir_boleto?: boolean
+          pessoal_valor?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "honorarios_empresas_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       modules: {
         Row: {
           ativo: boolean
