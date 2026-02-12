@@ -19,7 +19,7 @@ interface Props {
     totalMes: number;
   };
   getMesData: (empresa: HonorarioEmpresa, mes: MesKey) => HonorarioMesData;
-  onUpdateMes: (id: string, mes: MesKey, field: keyof HonorarioMesData, value: any) => void;
+  onUpdateMes: (id: string, mes: MesKey, field: keyof HonorarioMesData | Partial<HonorarioMesData>, value?: any) => void;
   onEdit: (empresa: HonorarioEmpresa) => void;
   onDelete: (id: string) => void;
 }
@@ -131,7 +131,7 @@ export function HonorariosTable({ empresas, mes, salarioMinimo, canEdit, calcula
           <Table className="min-w-max">
             <TableHeader>
               <TableRow className="header-gradient text-primary-foreground hover:bg-transparent [&>th]:text-primary-foreground/90 [&>th]:font-semibold">
-                <TableHead className="min-w-[140px] max-w-[160px] text-xs">Razão Social</TableHead>
+                <TableHead className="min-w-[220px] max-w-[260px] text-xs">Razão Social</TableHead>
                 <TableHead className="text-xs text-center w-16">Fiscal %</TableHead>
                 <TableHead className="text-xs text-center w-16">Contábil %</TableHead>
                 <TableHead className="text-xs text-center w-20">Pessoal R$</TableHead>
@@ -159,7 +159,7 @@ export function HonorariosTable({ empresas, mes, salarioMinimo, canEdit, calcula
                   const { valorFiscalContabil, valorFuncionarios, totalMes } = calcularValores(emp, mes);
                   return (
                     <TableRow key={emp.id}>
-                      <TableCell className="text-xs font-medium truncate max-w-[160px]">{emp.empresa_nome}</TableCell>
+                      <TableCell className="text-xs font-medium truncate max-w-[260px]">{emp.empresa_nome}</TableCell>
                       <TableCell className="text-xs text-center">{emp.fiscal_percentual}%</TableCell>
                       <TableCell className="text-xs text-center">{emp.contabil_percentual}%</TableCell>
                       <TableCell className="text-xs text-center">{formatCurrency(emp.pessoal_valor)}</TableCell>
@@ -179,8 +179,10 @@ export function HonorariosTable({ empresas, mes, salarioMinimo, canEdit, calcula
                           canEdit={canEdit}
                           onSave={(items) => {
                             const total = items.reduce((sum, i) => sum + i.valor, 0);
-                            onUpdateMes(emp.id, mes, "servicos_extras", total);
-                            onUpdateMes(emp.id, mes, "servicos_extras_items", items);
+                            onUpdateMes(emp.id, mes, {
+                              servicos_extras: total,
+                              servicos_extras_items: items,
+                            } as any);
                           }}
                         />
                       </TableCell>
