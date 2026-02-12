@@ -53,7 +53,7 @@ export function useHonorarios() {
     // Fetch config, honorarios_empresas, and all contmax empresas in parallel
     const [configRes, honorariosRes, empresasRes] = await Promise.all([
       supabase.from("honorarios_config").select("*").limit(1).single(),
-      supabase.from("honorarios_empresas").select("*, empresas!inner(nome)").order("created_at"),
+      supabase.from("honorarios_empresas").select("*, empresas!inner(nome)").order("nome", { referencedTable: "empresas" }),
       supabase.from("empresas").select("id, nome").eq("organizacao_id", contmaxOrgId).is("data_baixa", null).order("nome"),
     ]);
 
