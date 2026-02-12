@@ -14,9 +14,15 @@ export const MES_LABELS: Record<MesKey, string> = {
   fechamento: "Fechamento",
 };
 
+export interface ServicosExtrasItem {
+  descricao: string;
+  valor: number;
+}
+
 export interface HonorarioMesData {
   num_funcionarios: number;
   servicos_extras: number;
+  servicos_extras_items?: ServicosExtrasItem[];
   data_pagamento: string;
 }
 
@@ -35,6 +41,7 @@ export interface HonorarioEmpresa {
 const emptyMesData = (): HonorarioMesData => ({
   num_funcionarios: 0,
   servicos_extras: 0,
+  servicos_extras_items: [],
   data_pagamento: "",
 });
 
