@@ -5,12 +5,13 @@ import { useToast } from "@/hooks/use-toast";
 export type MesKey =
   | "janeiro" | "fevereiro" | "marco" | "abril"
   | "maio" | "junho" | "julho" | "agosto"
-  | "setembro" | "outubro" | "novembro" | "dezembro";
+  | "setembro" | "outubro" | "novembro" | "dezembro" | "fechamento";
 
 export const MES_LABELS: Record<MesKey, string> = {
   janeiro: "Jan", fevereiro: "Fev", marco: "Mar", abril: "Abr",
   maio: "Mai", junho: "Jun", julho: "Jul", agosto: "Ago",
   setembro: "Set", outubro: "Out", novembro: "Nov", dezembro: "Dez",
+  fechamento: "Fechamento",
 };
 
 export interface HonorarioMesData {
