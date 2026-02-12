@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Clientes from "./pages/Clientes";
 import Admin from "./pages/Admin";
 import Auth from "./pages/Auth";
+import Honorarios from "./pages/Honorarios";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><Portal /></ProtectedRoute>} />
             <Route path="/controle-fiscal" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/clientes/:orgSlug" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
+            <Route path="/honorarios-contmax" element={<ProtectedRoute><Honorarios /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
