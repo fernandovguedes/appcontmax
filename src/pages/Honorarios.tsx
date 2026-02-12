@@ -57,7 +57,7 @@ export default function Honorarios() {
                 onClick={() => { setEditingEmpresa(null); setEmpresaDialogOpen(true); }}
                 className="text-primary-foreground/80 hover:text-primary-foreground hover:bg-white/10"
               >
-                <Plus className="mr-1 h-4 w-4" /> Cadastrar
+                <Plus className="mr-1 h-4 w-4" /> Incluir Empresa
               </Button>
             </div>
           ) : undefined
@@ -73,14 +73,24 @@ export default function Honorarios() {
               ))}
             </TabsList>
           </Tabs>
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar empresa..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar empresa..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            {canEdit && (
+              <Button
+                size="sm"
+                onClick={() => { setEditingEmpresa(null); setEmpresaDialogOpen(true); }}
+              >
+                <Plus className="mr-1 h-4 w-4" /> Incluir Empresa
+              </Button>
+            )}
           </div>
         </div>
 
