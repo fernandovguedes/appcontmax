@@ -5,7 +5,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 
 export function useModulePermissions(moduleSlug: string = "controle-fiscal") {
   const { user } = useAuth();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, loading: roleLoading } = useUserRole();
   const [canEdit, setCanEdit] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -15,6 +15,8 @@ export function useModulePermissions(moduleSlug: string = "controle-fiscal") {
       setLoading(false);
       return;
     }
+
+    if (roleLoading) return;
 
     if (isAdmin) {
       setCanEdit(true);
@@ -35,7 +37,7 @@ export function useModulePermissions(moduleSlug: string = "controle-fiscal") {
     };
 
     fetch();
-  }, [user, isAdmin, moduleSlug]);
+  }, [user, isAdmin, roleLoading, moduleSlug]);
 
   return { canEdit, loading };
 }
