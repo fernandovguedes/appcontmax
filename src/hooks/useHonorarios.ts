@@ -154,28 +154,30 @@ export function useHonorarios() {
     toast({ title: "Empresa removida" });
   }, [toast]);
 
-  const updateMesData = useCallback(async (id: string, mes: MesKey, field: keyof HonorarioMesData, value: any) => {
-    const empresa = empresas.find((e) => e.id === id);
-    if (!empresa) return;
+  const updateMesData = useCallback(async (id: string, mes: MesKey, field: keyof HonorarioMesData | Partial<HonorarioMesData>, value?: any) => {
+    setEmpresas((prev) => {
+      const empresa = prev.find((e) => e.id === id);
+      if (!empresa) return prev;
 
-    const currentMes = empresa.meses[mes] ?? emptyMesData();
-    const updatedMes = { ...currentMes, [field]: value };
-    const updatedMeses = { ...empresa.meses, [mes]: updatedMes };
+      const currentMes = empresa.meses[mes] ?? emptyMesData();
+      const updates = typeof field === "object" ? field : { [field]: value };
+      const updatedMes = { ...currentMes, ...updates };
+      const updatedMeses = { ...empresa.meses, [mes]: updatedMes };
 
-    const { error } = await supabase
-      .from("honorarios_empresas")
-      .update({ meses: updatedMeses } as any)
-      .eq("id", id);
+      // Fire async update
+      supabase
+        .from("honorarios_empresas")
+        .update({ meses: updatedMeses } as any)
+        .eq("id", id)
+        .then(({ error }) => {
+          if (error) {
+            toast({ title: "Erro ao atualizar dados mensais", description: error.message, variant: "destructive" });
+          }
+        });
 
-    if (error) {
-      toast({ title: "Erro ao atualizar dados mensais", description: error.message, variant: "destructive" });
-      return;
-    }
-
-    setEmpresas((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, meses: updatedMeses } : e))
-    );
-  }, [empresas, toast]);
+      return prev.map((e) => (e.id === id ? { ...e, meses: updatedMeses } : e));
+    });
+  }, [toast]);
 
   const getMesData = useCallback((empresa: HonorarioEmpresa, mes: MesKey): HonorarioMesData => {
     return empresa.meses[mes] ?? emptyMesData();
