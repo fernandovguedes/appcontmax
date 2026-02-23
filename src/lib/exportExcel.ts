@@ -31,6 +31,33 @@ const questorLabel = (s: string) => {
   return s;
 };
 
+export function exportClientesToExcel(empresas: Empresa[], nomeOrg: string) {
+  const rows = empresas.map((e) => {
+    const base: Record<string, any> = {
+      "Nº": e.numero,
+      Empresa: e.nome,
+      CNPJ: e.cnpj,
+      "Regime Tributário": REGIME_LABELS[e.regimeTributario],
+      "Emite NF": e.emiteNotaFiscal ? "Sim" : "Não",
+      "Início Competência": e.inicioCompetencia || "—",
+      Status: e.dataBaixa
+        ? `Baixada em ${new Date(e.dataBaixa).toLocaleDateString("pt-BR")}`
+        : "Ativa",
+    };
+    e.socios.forEach((s, i) => {
+      base[`Sócio ${i + 1}`] = s.nome;
+      base[`CPF Sócio ${i + 1}`] = s.cpf;
+      base[`% Sócio ${i + 1}`] = s.percentual;
+    });
+    return base;
+  });
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Clientes");
+  XLSX.writeFile(wb, `Clientes_${nomeOrg}.xlsx`);
+}
+
 export function exportToExcel(empresas: Empresa[], mesSelecionado: MesKey) {
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
   const mesTrimestre = getMesFechamentoTrimestre(mesSelecionado);

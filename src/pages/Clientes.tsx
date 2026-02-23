@@ -20,7 +20,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Plus, Search, Filter, Pencil, Trash2, Archive, RotateCcw, FileText, FileX, CalendarIcon, Users, Building2 } from "lucide-react";
+import { Plus, Search, Filter, Pencil, Trash2, Archive, RotateCcw, FileText, FileX, CalendarIcon, Users, Building2, Download } from "lucide-react";
+import { exportClientesToExcel } from "@/lib/exportExcel";
 import { useNavigate, useParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -96,14 +97,22 @@ export default function Clientes() {
         showLogout
         breadcrumbs={[{ label: "Portal", href: "/" }, { label: `Clientes ${orgInfo.nome}` }]}
         actions={
-          canEdit ? (
+          <div className="flex items-center gap-2">
             <Button
-              onClick={handleNew}
-              className="bg-accent text-accent-foreground hover:bg-accent/90"
+              variant="outline"
+              onClick={() => exportClientesToExcel(filtered, orgInfo.nome)}
             >
-              <Plus className="mr-1 h-4 w-4" /> Nova Empresa
+              <Download className="mr-1 h-4 w-4" /> Exportar Excel
             </Button>
-          ) : undefined
+            {canEdit && (
+              <Button
+                onClick={handleNew}
+                className="bg-accent text-accent-foreground hover:bg-accent/90"
+              >
+                <Plus className="mr-1 h-4 w-4" /> Nova Empresa
+              </Button>
+            )}
+          </div>
         }
       />
 
