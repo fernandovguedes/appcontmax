@@ -38,10 +38,10 @@ export default function ComparativoTributario() {
         <>
           {/* Floating actions */}
           <div className="fixed bottom-6 right-6 z-50 flex gap-2 print:hidden">
-            <Button variant="outline" size="sm" onClick={handleReset} className="shadow-lg bg-card">
+            <Button variant="outline" size="sm" onClick={handleReset} className="shadow-lg glass">
               <RefreshCw className="mr-1 h-4 w-4" /> Novo Upload
             </Button>
-            <Button size="sm" onClick={handleExportPDF} className="shadow-lg">
+            <Button size="sm" onClick={handleExportPDF} className="shadow-lg header-gradient text-primary-foreground">
               <Printer className="mr-1 h-4 w-4" /> Exportar PDF
             </Button>
           </div>

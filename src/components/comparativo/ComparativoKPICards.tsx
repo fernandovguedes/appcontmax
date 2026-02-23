@@ -14,9 +14,9 @@ const CARDS = [
   { key: "reducao", title: "Redução", subtitle: "Percentual de economia", icon: Percent, variant: "gain" },
 ] as const;
 
-const VARIANT_STYLES: Record<string, string> = {
-  neutral: "bg-muted/20 text-muted-foreground",
-  gain: "bg-primary/10 text-primary",
+const ICON_STYLES: Record<string, string> = {
+  neutral: "bg-muted/30 text-muted-foreground",
+  gain: "bg-primary/15 text-primary",
   gold: "bg-accent text-accent-foreground",
 };
 
@@ -33,15 +33,15 @@ export function ComparativoKPICards({ data }: Props) {
       {CARDS.map((c) => {
         const Icon = c.icon;
         return (
-          <Card key={c.key} className="overflow-hidden">
+          <Card key={c.key} className={`overflow-hidden card-variant-${c.variant}`}>
             <CardContent className="p-5">
               <div className="flex items-center gap-3 mb-3">
-                <div className={`rounded-lg p-2 ${VARIANT_STYLES[c.variant]}`}>
-                  <Icon className="h-4 w-4" />
+                <div className={`rounded-xl p-2.5 ${ICON_STYLES[c.variant]}`}>
+                  <Icon className="h-5 w-5" />
                 </div>
                 <span className="text-sm font-medium text-muted-foreground">{c.title}</span>
               </div>
-              <p className="text-2xl font-bold tracking-tight">{values[c.key]}</p>
+              <p className="text-2xl font-bold font-mono tracking-tight">{values[c.key]}</p>
               <p className="text-xs text-muted-foreground mt-1">{c.subtitle}</p>
             </CardContent>
           </Card>

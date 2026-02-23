@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import type { ComparativoData } from "@/types/comparativo";
-import { formatBRL } from "@/lib/formatUtils";
+import { ChartTooltip } from "./CustomTooltip";
 
 interface Props {
   data: ComparativoData;
@@ -18,20 +18,20 @@ export function MonthlyPISCOFINSChart({ data }: Props) {
   }));
 
   return (
-    <Card>
+    <Card className="chart-card">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">PIS + COFINS — Mensal</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={350}>
+        <ResponsiveContainer width="100%" height={380}>
           <BarChart data={chartData} barGap={2}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
             <XAxis dataKey="name" className="text-xs" />
             <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} className="text-xs" />
-            <Tooltip formatter={(v: number) => formatBRL(v)} />
+            <Tooltip content={<ChartTooltip />} />
             <Legend />
             <Bar dataKey="Presumido (PIS+COFINS)" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="Real (PIS+COFINS)" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Real (PIS+COFINS)" fill="hsl(152, 60%, 40%)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>
