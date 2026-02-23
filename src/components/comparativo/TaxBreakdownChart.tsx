@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import type { ComparativoData, TaxQuarterly, TaxMonthly } from "@/types/comparativo";
-import { formatBRL } from "@/lib/formatUtils";
+import { ChartTooltip } from "./CustomTooltip";
 
 interface Props {
   data: ComparativoData;
@@ -24,7 +24,7 @@ export function TaxBreakdownChart({ data }: Props) {
   ];
 
   return (
-    <Card>
+    <Card className="chart-card">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Composição por Tributo</CardTitle>
       </CardHeader>
@@ -34,10 +34,10 @@ export function TaxBreakdownChart({ data }: Props) {
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
             <XAxis dataKey="name" className="text-xs" />
             <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} className="text-xs" />
-            <Tooltip formatter={(v: number) => formatBRL(v)} />
+            <Tooltip content={<ChartTooltip />} />
             <Legend />
             <Bar dataKey="Presumido" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="Real" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Real" fill="hsl(152, 60%, 40%)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>

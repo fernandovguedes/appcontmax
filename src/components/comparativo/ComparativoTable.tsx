@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import type { ComparativoData, TaxQuarterly, TaxMonthly } from "@/types/comparativo";
 import { formatBRL } from "@/lib/formatUtils";
 
@@ -24,30 +25,39 @@ export function ComparativoTable({ data }: Props) {
   ];
 
   return (
-    <Card>
+    <Card className="chart-card overflow-hidden">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Tabela Detalhada</CardTitle>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
-        <Table className="table-zebra">
+      <CardContent className="overflow-x-auto p-0">
+        <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Tributo</TableHead>
-              <TableHead className="text-right">Lucro Presumido</TableHead>
-              <TableHead className="text-right">Lucro Real</TableHead>
-              <TableHead className="text-right">Diferença</TableHead>
+            <TableRow className="header-gradient border-none">
+              <TableHead className="text-primary-foreground font-semibold">Tributo</TableHead>
+              <TableHead className="text-primary-foreground font-semibold text-right">Lucro Presumido</TableHead>
+              <TableHead className="text-primary-foreground font-semibold text-right">Lucro Real</TableHead>
+              <TableHead className="text-primary-foreground font-semibold text-right">Diferença</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((r) => {
               const diff = r.presumido - r.real;
               return (
-                <TableRow key={r.label} className={r.isTotal ? "font-bold border-t-2" : ""}>
-                  <TableCell>{r.label}</TableCell>
-                  <TableCell className="text-right">{formatBRL(r.presumido)}</TableCell>
-                  <TableCell className="text-right">{formatBRL(r.real)}</TableCell>
-                  <TableCell className={`text-right ${diff > 0 ? "text-primary font-semibold" : ""}`}>
-                    {formatBRL(diff)}
+                <TableRow
+                  key={r.label}
+                  className={`transition-colors hover:bg-muted/10 ${r.isTotal ? "font-bold bg-primary/5 border-t-2 border-primary/20" : ""}`}
+                >
+                  <TableCell className="font-medium">{r.label}</TableCell>
+                  <TableCell className="text-right font-mono">{formatBRL(r.presumido)}</TableCell>
+                  <TableCell className="text-right font-mono">{formatBRL(r.real)}</TableCell>
+                  <TableCell className="text-right">
+                    {diff > 0 ? (
+                      <Badge className="bg-success/15 text-success border-success/30 font-mono">
+                        {formatBRL(diff)}
+                      </Badge>
+                    ) : (
+                      <span className="font-mono">{formatBRL(diff)}</span>
+                    )}
                   </TableCell>
                 </TableRow>
               );

@@ -216,3 +216,56 @@
 .animate-slide-up {
   animation: slide-up 0.5s ease-out both;
 }
+
+/* Comparativo Tributário — visual upgrade */
+.gradient-hero {
+  background:
+    radial-gradient(ellipse at 20% 0%, hsl(var(--primary) / 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 100%, hsl(var(--primary) / 0.12) 0%, transparent 50%),
+    hsl(var(--card));
+}
+
+.glow-gain {
+  box-shadow: 0 0 30px -8px hsl(var(--primary) / 0.25);
+}
+.glow-gold {
+  box-shadow: 0 0 30px -8px hsl(var(--accent-foreground) / 0.25);
+}
+
+.card-variant-neutral {
+  border-left: 4px solid hsl(var(--muted));
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.card-variant-neutral:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -8px hsl(var(--muted) / 0.2);
+}
+
+.card-variant-gain {
+  border-left: 4px solid hsl(var(--primary));
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.card-variant-gain:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 24px -6px hsl(var(--primary) / 0.3);
+}
+
+.card-variant-gold {
+  border-left: 4px solid hsl(var(--accent-foreground));
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.card-variant-gold:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 24px -6px hsl(var(--accent-foreground) / 0.3);
+}
+
+.chart-card {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid hsl(var(--border) / 0.5);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.chart-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -8px hsl(var(--primary) / 0.12);
+}
