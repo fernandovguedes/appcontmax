@@ -1,87 +1,72 @@
 
+# Upgrade Visual do Comparativo Tributario
 
-# Modulo Comparativo Tributario - Gerador de Relatorio via Excel
+**Custo estimado: ~4-5 creditos**
 
 ## Resumo
 
-Criar um novo modulo "Comparativo Tributario" no Portal Contmax. O modulo funciona como gerador de relatorio: o usuario faz upload de um arquivo Excel (no formato padrao da planilha enviada) e o sistema gera um dashboard visual comparando Lucro Presumido vs. Lucro Real. Sem persistencia no banco -- dados vivem apenas em memoria.
+Atualizar o visual do modulo Comparativo Tributario para ficar mais moderno e sofisticado, inspirado no codigo de referencia enviado. As mudancas incluem: efeitos de glow, gradientes mais ricos, cards com bordas coloridas por variante, hover effects, tooltips customizados nos graficos e estilo de tabela mais refinado.
 
-## Estrutura do Excel Esperado
+## Alteracoes
 
-```text
-LUCRO REAL
-  IR:     4 valores trimestrais (Mar, Jun, Sep, Dec)
-  CSLL:   4 valores trimestrais
-  PIS:    12 valores mensais (Jan-Dec)
-  COFINS: 12 valores mensais
-  TOTAL:  1 valor
+### 1. `src/index.css` - Novos utilitarios CSS
 
-LUCRO PRESUMIDO
-  (mesma estrutura)
-  TOTAL:  1 valor
+Adicionar classes CSS inspiradas no codigo de referencia:
 
-Diferenca: 1 valor
-```
+- `.gradient-hero`: gradiente radial sofisticado para o hero KPI (radial-gradient com primary/5 e primary/10)
+- `.glow-gain`: box-shadow com glow verde/primary sutil
+- `.glow-gold`: box-shadow com glow dourado/accent
+- `.card-variant-neutral`: borda esquerda cinza + hover sutil
+- `.card-variant-gain`: borda esquerda primary + glow primary no hover
+- `.card-variant-gold`: borda esquerda accent/dourada + glow dourado no hover
+- `.chart-card`: estilo de card com backdrop-filter e borda sutil para os graficos
 
-## Dashboard Gerado
+### 2. `src/components/comparativo/ComparativoHeroKPI.tsx`
 
-1. **Hero KPI**: Economia total anual (diferenca entre Presumido e Real)
-2. **4 Cards KPI**: Total Presumido, Total Real, Economia absoluta, Reducao percentual
-3. **Grafico Trimestral**: IR + CSLL por trimestre comparando os dois regimes (barras agrupadas)
-4. **Grafico Composicao**: Breakdown por tipo de imposto (IR, CSLL, PIS, COFINS) nos dois regimes
-5. **Grafico Mensal PIS/COFINS**: Comparativo mensal entre os dois regimes
-6. **Tabela Detalhada**: Todos os valores com coluna de diferenca
-7. **Botao Exportar PDF**: Usa window.print() para gerar PDF
+- Trocar classes do container para usar `gradient-hero` + `glow-gain`
+- Adicionar efeito de backdrop mais rico com gradiente radial
+- Aumentar o shadow para criar profundidade
 
-## Arquivos a Criar
+### 3. `src/components/comparativo/ComparativoKPICards.tsx`
 
-### Tipos e Parser
-- **`src/types/comparativo.ts`** -- Interfaces TypeScript (ComparativoData, RegimeData, TaxQuarterly, TaxMonthly)
-- **`src/lib/parseComparativoExcel.ts`** -- Parser usando `xlsx` que busca keywords "LUCRO REAL", "LUCRO PRESUMIDO", "IR", "CSLL", "PIS", "COFINS", "TOTAL" e extrai os valores monetarios
+- Adicionar borda esquerda colorida por variante (4px accent bar)
+- Adicionar efeito hover com elevacao e glow por variante
+- Icone com fundo mais vibrante e arredondamento maior
+- Valor principal com tamanho maior e fonte mono
 
-### Componentes
-- **`src/components/comparativo/UploadArea.tsx`** -- Drag-and-drop para upload do Excel (.xlsx/.xls)
-- **`src/components/comparativo/ComparativoHeroKPI.tsx`** -- Card hero com economia total
-- **`src/components/comparativo/ComparativoKPICards.tsx`** -- 4 cards KPI
-- **`src/components/comparativo/QuarterlyComparisonChart.tsx`** -- Grafico barras IR+CSLL trimestral (recharts)
-- **`src/components/comparativo/TaxBreakdownChart.tsx`** -- Grafico composicao por imposto
-- **`src/components/comparativo/MonthlyPISCOFINSChart.tsx`** -- Grafico mensal PIS/COFINS
-- **`src/components/comparativo/ComparativoTable.tsx`** -- Tabela detalhada com diferencas
+### 4. `src/components/comparativo/QuarterlyComparisonChart.tsx`
 
-### Pagina Principal
-- **`src/pages/ComparativoTributario.tsx`** -- Pagina do modulo com:
-  - Estado `data: ComparativoData | null`
-  - Se null: mostra UploadArea
-  - Se preenchido: mostra dashboard completo
-  - Botao "Novo Upload" para substituir dados
-  - Botao "Exportar PDF" flutuante
+- Card com classe `card-hover` para efeito de elevacao
+- Tooltip customizado com fundo escuro e borda arredondada
+- Cores das barras mais contrastantes (usar emerald/green para Real e orange para Presumido)
 
-## Arquivos a Modificar
+### 5. `src/components/comparativo/TaxBreakdownChart.tsx`
 
-### `src/App.tsx`
-- Importar ComparativoTributario
-- Adicionar rota `/comparativo-tributario` com ProtectedRoute
+- Mesmas melhorias de card e tooltip do QuarterlyChart
+- Cores consistentes com o grafico trimestral
 
-### `src/pages/Portal.tsx`
-- Adicionar `"comparativo-tributario": "/comparativo-tributario"` ao MODULE_ROUTES
-- Adicionar `BarChart3` ao ICON_MAP
+### 6. `src/components/comparativo/MonthlyPISCOFINSChart.tsx`
 
-## Registro no Banco
+- Mesmas melhorias de card e tooltip
+- Altura aumentada para melhor leitura dos 12 meses
 
-Inserir na tabela `modules`:
+### 7. `src/components/comparativo/ComparativoTable.tsx`
 
-```sql
-INSERT INTO modules (nome, slug, descricao, icone, ativo, ordem, organizacao_id)
-VALUES ('Comparativo Tributário', 'comparativo-tributario', 'Gerador de relatório comparativo Lucro Presumido vs. Lucro Real', 'BarChart3', true, 4, NULL);
-```
+- Header da tabela com gradiente escuro (`header-gradient` adaptado)
+- Texto do header em branco/claro
+- Linha de TOTAL com fundo highlight sutil
+- Coluna de diferenca com badge colorido (verde quando positivo)
+- Hover nas linhas com transicao suave
 
-`organizacao_id = NULL` pois e um modulo de sistema, nao vinculado a organizacao.
+### 8. `src/pages/ComparativoTributario.tsx`
+
+- Botoes flutuantes com backdrop-blur (glass effect)
+- Botao de exportar com gradiente primary
 
 ## Detalhes Tecnicos
 
-- **Sem persistencia**: Dados em useState, perdidos ao navegar. Upload a cada uso.
-- **Sem framer-motion**: O codigo de referencia usa framer-motion mas nao esta instalado. Substituir por classes CSS existentes (`animate-fade-in`, `animate-slide-up`).
-- **Bibliotecas ja instaladas**: `xlsx` para parse do Excel, `recharts` para graficos, `lucide-react` para icones.
-- **Formatacao monetaria**: `Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })`.
-- **Estilo visual**: Segue design system existente (shadcn/ui Cards, cores primary/accent, tipografia do projeto).
-
+- Sem dependencias novas (sem framer-motion) -- todas as animacoes via CSS existente
+- As cores usam as variaveis CSS ja definidas (--primary, --accent, --chart-1, --chart-2)
+- Adicionamos cores especificas para os efeitos de glow usando hsl com opacidade
+- Tooltip customizado dos graficos via componente inline do Recharts (prop `content`)
+- Compativel com dark mode pois usa variaveis CSS tematicas
