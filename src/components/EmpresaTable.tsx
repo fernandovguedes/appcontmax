@@ -52,7 +52,7 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
   const containerRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div className="max-h-[calc(100vh-220px)] overflow-y-auto overflow-x-hidden rounded-xl border bg-card shadow-sm table-zebra">
+    <div className="max-h-[calc(100vh-220px)] overflow-y-auto overflow-x-hidden rounded-xl border shadow-sm table-zebra bg-muted text-primary-foreground">
       <div ref={containerRef} className="overflow-x-auto">
         <Table className="min-w-max">
           <TableHeader>
@@ -65,37 +65,37 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
               <TableHead className="text-right">Faturamento</TableHead>
               <TableHead className="text-center">Lanç. Questor</TableHead>
               <TableHead className="text-right">Dist. Lucros</TableHead>
-              {isFechamento && (
-                <>
+              {isFechamento &&
+              <>
                   <TableHead className="text-right">Dist. Trimestral</TableHead>
                   <TableHead className="text-center">Lanç. Fiscal</TableHead>
                   <TableHead className="text-center">REINF</TableHead>
                   <TableHead className="text-center">DCTF Web</TableHead>
                   <TableHead className="text-center">MIT</TableHead>
                 </>
-              )}
-              {isDctfPos && (
-                <TableHead className="text-center">DCTF S/Mov</TableHead>
-              )}
+              }
+              {isDctfPos &&
+              <TableHead className="text-center">DCTF S/Mov</TableHead>
+              }
               <TableHead className="w-24 text-center">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {empresas.length === 0 && (
-              <TableRow>
+            {empresas.length === 0 &&
+            <TableRow>
                 <TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">
                   Nenhuma empresa cadastrada.
                 </TableCell>
               </TableRow>
-            )}
+            }
             {empresas.map((empresa) => {
               const mes = empresa.meses[mesSelecionado];
               const sociosComDistribuicao = calcularDistribuicaoSocios(empresa.socios, mes.distribuicaoLucros);
-              const temAlerta = sociosComDistribuicao.some(s => (s.distribuicaoLucros ?? 0) > LIMITE_DISTRIBUICAO_SOCIO);
+              const temAlerta = sociosComDistribuicao.some((s) => (s.distribuicaoLucros ?? 0) > LIMITE_DISTRIBUICAO_SOCIO);
 
               const distribuicaoTrimestral = isFechamento ? calcularDistribuicaoTrimestral(empresa, mesSelecionado) : 0;
               const sociosTrimestrais = isFechamento ? calcularDistribuicaoSocios(empresa.socios, distribuicaoTrimestral) : [];
-              const temAlertaTrimestral = sociosTrimestrais.some(s => (s.distribuicaoLucros ?? 0) > LIMITE_DISTRIBUICAO_SOCIO);
+              const temAlertaTrimestral = sociosTrimestrais.some((s) => (s.distribuicaoLucros ?? 0) > LIMITE_DISTRIBUICAO_SOCIO);
 
               const fatTrimestreAnterior = trimestreAnterior ? calcularFaturamentoTrimestre(empresa, trimestreAnterior) : 0;
               const reinfObrigatoria = fatTrimestreAnterior > 0;
@@ -106,11 +106,11 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
                   <TableCell className="font-medium max-w-[180px] truncate">
                     <div className="flex items-center gap-2">
                       <span className={empresa.dataBaixa ? "text-destructive" : ""}>{empresa.nome}</span>
-                      {empresa.dataBaixa && (
-                        <Badge variant="destructive" className="text-[9px] px-1.5 whitespace-nowrap">
+                      {empresa.dataBaixa &&
+                      <Badge variant="destructive" className="text-[9px] px-1.5 whitespace-nowrap">
                           BAIXADA EM {format(new Date(empresa.dataBaixa), "dd/MM/yyyy")}
                         </Badge>
-                      )}
+                      }
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
@@ -122,11 +122,11 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger>
-                          {empresa.emiteNotaFiscal ? (
-                            <FileText className="h-4 w-4 text-success mx-auto" />
-                          ) : (
-                            <FileX className="h-4 w-4 text-muted-foreground mx-auto" />
-                          )}
+                          {empresa.emiteNotaFiscal ?
+                          <FileText className="h-4 w-4 text-success mx-auto" /> :
+
+                          <FileX className="h-4 w-4 text-muted-foreground mx-auto" />
+                          }
                         </TooltipTrigger>
                         <TooltipContent>
                           {empresa.emiteNotaFiscal ? "Emite NF" : "Não emite NF"}
@@ -137,8 +137,8 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
                   <TableCell className="text-center">
                     <ExtratoSelect
                       value={mes.extratoEnviado}
-                      onChange={(v) => onExtratoChange(empresa.id, mesSelecionado, v)}
-                    />
+                      onChange={(v) => onExtratoChange(empresa.id, mesSelecionado, v)} />
+
                   </TableCell>
                   <TableCell className="text-right">
                     <FaturamentoPopover dados={mes} />
@@ -146,115 +146,115 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
                   <TableCell className="text-center">
                     <QuestorSelect
                       value={mes.lancadoQuestor}
-                      onChange={(v) => onMesFieldChange(empresa.id, mesSelecionado, "lancadoQuestor", v)}
-                    />
+                      onChange={(v) => onMesFieldChange(empresa.id, mesSelecionado, "lancadoQuestor", v)} />
+
                   </TableCell>
                   <TableCell className="text-right">
-                    <DistribuicaoSociosPopover 
-                      socios={empresa.socios} 
+                    <DistribuicaoSociosPopover
+                      socios={empresa.socios}
                       distribuicaoTotal={mes.distribuicaoLucros}
-                      label="Mensal"
-                    />
+                      label="Mensal" />
+
                   </TableCell>
-                  {isFechamento && (
-                    <>
+                  {isFechamento &&
+                  <>
                       <TableCell className="text-right">
-                        <DistribuicaoSociosPopover 
-                          socios={empresa.socios} 
-                          distribuicaoTotal={distribuicaoTrimestral}
-                          label="Trimestral"
-                          isTrimestral
-                          detalhesMensais={getMesesTrimestre(mesSelecionado).map(m => ({
-                            mes: m,
-                            faturamento: empresa.meses[m].faturamentoTotal,
-                            distribuicao: empresa.meses[m].faturamentoTotal * 0.75,
-                          }))}
-                        />
+                        <DistribuicaoSociosPopover
+                        socios={empresa.socios}
+                        distribuicaoTotal={distribuicaoTrimestral}
+                        label="Trimestral"
+                        isTrimestral
+                        detalhesMensais={getMesesTrimestre(mesSelecionado).map((m) => ({
+                          mes: m,
+                          faturamento: empresa.meses[m].faturamentoTotal,
+                          distribuicao: empresa.meses[m].faturamentoTotal * 0.75
+                        }))} />
+
                       </TableCell>
                       <TableCell className="text-center">
                         <StatusSelect
-                          value={empresa.obrigacoes[mesTrimestre].lancamentoFiscal}
-                          onChange={(v) => onStatusChange(empresa.id, mesTrimestre, "lancamentoFiscal", v)}
-                        />
+                        value={empresa.obrigacoes[mesTrimestre].lancamentoFiscal}
+                        onChange={(v) => onStatusChange(empresa.id, mesTrimestre, "lancamentoFiscal", v)} />
+
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-1">
                           <StatusSelect
-                            value={empresa.obrigacoes[mesTrimestre].reinf}
-                            onChange={(v) => onStatusChange(empresa.id, mesTrimestre, "reinf", v)}
-                          />
+                          value={empresa.obrigacoes[mesTrimestre].reinf}
+                          onChange={(v) => onStatusChange(empresa.id, mesTrimestre, "reinf", v)} />
+
                           <ReinfAlert empresa={empresa} mesFechamento={mesTrimestre} />
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
                         <StatusSelect
-                          value={empresa.obrigacoes[mesTrimestre].dcftWeb}
-                          onChange={(v) => onStatusChange(empresa.id, mesTrimestre, "dcftWeb", v)}
-                        />
+                        value={empresa.obrigacoes[mesTrimestre].dcftWeb}
+                        onChange={(v) => onStatusChange(empresa.id, mesTrimestre, "dcftWeb", v)} />
+
                       </TableCell>
                       <TableCell className="text-center">
-                        {empresa.regimeTributario === "lucro_presumido" ? (
-                          <StatusSelect
-                            value={empresa.obrigacoes[mesTrimestre].mit}
-                            onChange={(v) => onStatusChange(empresa.id, mesTrimestre, "mit", v)}
-                          />
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
+                        {empresa.regimeTributario === "lucro_presumido" ?
+                      <StatusSelect
+                        value={empresa.obrigacoes[mesTrimestre].mit}
+                        onChange={(v) => onStatusChange(empresa.id, mesTrimestre, "mit", v)} /> :
+
+
+                      <span className="text-muted-foreground text-xs">—</span>
+                      }
                       </TableCell>
                     </>
-                  )}
-                  {isDctfPos && (
-                    <TableCell className="text-center">
-                      {reinfObrigatoria ? (
-                        <div className="flex flex-col items-center gap-1">
+                  }
+                  {isDctfPos &&
+                  <TableCell className="text-center">
+                      {reinfObrigatoria ?
+                    <div className="flex flex-col items-center gap-1">
                           <span className="text-[10px] text-destructive font-medium">REINF enviada</span>
                           <StatusSelect
-                            value={mes.dctfWebSemMovimento ?? "pendente"}
-                            onChange={(v) => onMesFieldChange(empresa.id, mesSelecionado, "dctfWebSemMovimento", v)}
-                            options={[
-                              { value: "ok", label: "✅ OK" },
-                              { value: "pendente", label: "❌ Pendente" },
-                            ]}
-                          />
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">—</span>
-                      )}
+                        value={mes.dctfWebSemMovimento ?? "pendente"}
+                        onChange={(v) => onMesFieldChange(empresa.id, mesSelecionado, "dctfWebSemMovimento", v)}
+                        options={[
+                        { value: "ok", label: "✅ OK" },
+                        { value: "pendente", label: "❌ Pendente" }]
+                        } />
+
+                        </div> :
+
+                    <span className="text-muted-foreground text-xs">—</span>
+                    }
                     </TableCell>
-                  )}
+                  }
                   <TableCell>
                     <div className="flex items-center justify-center gap-1">
-                      {onFaturamento && (
-                        <Button variant="ghost" size="icon" onClick={() => onFaturamento(empresa)} title="Faturamento">
+                      {onFaturamento &&
+                      <Button variant="ghost" size="icon" onClick={() => onFaturamento(empresa)} title="Faturamento">
                           <DollarSign className="h-4 w-4" />
                         </Button>
-                      )}
-                      {canEdit && onEdit && (
-                        <Button variant="ghost" size="icon" onClick={() => onEdit(empresa)} title="Editar">
+                      }
+                      {canEdit && onEdit &&
+                      <Button variant="ghost" size="icon" onClick={() => onEdit(empresa)} title="Editar">
                           <Pencil className="h-4 w-4" />
                         </Button>
-                      )}
+                      }
                       {canEdit && onReativar && onBaixar && (
-                        empresa.dataBaixa ? (
-                          <Button variant="ghost" size="icon" onClick={() => onReativar(empresa)} title="Reativar empresa" className="text-success hover:text-success">
+                      empresa.dataBaixa ?
+                      <Button variant="ghost" size="icon" onClick={() => onReativar(empresa)} title="Reativar empresa" className="text-success hover:text-success">
                             <RotateCcw className="h-4 w-4" />
-                          </Button>
-                        ) : (
-                          <Button variant="ghost" size="icon" onClick={() => onBaixar(empresa)} title="Baixar empresa" className="text-warning hover:text-warning">
+                          </Button> :
+
+                      <Button variant="ghost" size="icon" onClick={() => onBaixar(empresa)} title="Baixar empresa" className="text-warning hover:text-warning">
                             <Archive className="h-4 w-4" />
-                          </Button>
-                        )
-                      )}
-                      {canEdit && onDelete && (
-                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => onDelete(empresa.id)}>
+                          </Button>)
+
+                      }
+                      {canEdit && onDelete &&
+                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => onDelete(empresa.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                      )}
+                      }
                     </div>
                   </TableCell>
-                </TableRow>
-              );
+                </TableRow>);
+
             })}
           </TableBody>
         </Table>
@@ -262,18 +262,18 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
 
       <CustomFixedScrollbar
         targetRef={containerRef}
-        watch={`${mesSelecionado}-${isFechamento}-${isDctfPos}-${empresas.length}`}
-      />
-    </div>
-  );
+        watch={`${mesSelecionado}-${isFechamento}-${isDctfPos}-${empresas.length}`} />
+
+    </div>);
+
 }
 
-function StatusSelect({ value, onChange, options }: { value: StatusEntrega; onChange: (v: StatusEntrega) => void; options?: { value: string; label: string }[] }) {
+function StatusSelect({ value, onChange, options }: {value: StatusEntrega;onChange: (v: StatusEntrega) => void;options?: {value: string;label: string;}[];}) {
   const defaultOptions = [
-    { value: "ok", label: "✅ OK" },
-    { value: "pendente", label: "❌ Pendente" },
-    { value: "nao_aplicavel", label: "➖ N/A" },
-  ];
+  { value: "ok", label: "✅ OK" },
+  { value: "pendente", label: "❌ Pendente" },
+  { value: "nao_aplicavel", label: "➖ N/A" }];
+
   const items = options ?? defaultOptions;
   return (
     <Select value={value} onValueChange={(v) => onChange(v as StatusEntrega)}>
@@ -281,15 +281,15 @@ function StatusSelect({ value, onChange, options }: { value: StatusEntrega; onCh
         <StatusBadge status={value} />
       </SelectTrigger>
       <SelectContent>
-        {items.map((opt) => (
-          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-        ))}
+        {items.map((opt) =>
+        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+        )}
       </SelectContent>
-    </Select>
-  );
+    </Select>);
+
 }
 
-function ExtratoSelect({ value, onChange }: { value: StatusExtrato; onChange: (v: StatusExtrato) => void }) {
+function ExtratoSelect({ value, onChange }: {value: StatusExtrato;onChange: (v: StatusExtrato) => void;}) {
   return (
     <Select value={value} onValueChange={(v) => onChange(v as StatusExtrato)}>
       <SelectTrigger className="h-8 w-[130px] mx-auto border-0 bg-transparent p-0 focus:ring-0 [&>svg]:ml-1">
@@ -300,11 +300,11 @@ function ExtratoSelect({ value, onChange }: { value: StatusExtrato; onChange: (v
         <SelectItem value="nao">❌ Não Enviado</SelectItem>
         <SelectItem value="sem_faturamento">➖ Sem Faturamento</SelectItem>
       </SelectContent>
-    </Select>
-  );
+    </Select>);
+
 }
 
-function QuestorSelect({ value, onChange }: { value: StatusQuestor; onChange: (v: StatusQuestor) => void }) {
+function QuestorSelect({ value, onChange }: {value: StatusQuestor;onChange: (v: StatusQuestor) => void;}) {
   return (
     <Select value={value} onValueChange={(v) => onChange(v as StatusQuestor)}>
       <SelectTrigger className="h-8 w-[120px] mx-auto border-0 bg-transparent p-0 focus:ring-0 [&>svg]:ml-1">
@@ -315,6 +315,6 @@ function QuestorSelect({ value, onChange }: { value: StatusQuestor; onChange: (v
         <SelectItem value="sem_faturamento">➖ Sem Faturamento</SelectItem>
         <SelectItem value="pendente">❌ Pendente</SelectItem>
       </SelectContent>
-    </Select>
-  );
+    </Select>);
+
 }
