@@ -1,40 +1,23 @@
 
 
-# Plano: Corrigir botoes de Salario Minimo, Incluir Empresa, Editar e Excluir
+# Corrigir permissoes de edicao no modulo Clientes P&G
 
-## Problema identificado
+## Problema
 
-Os botoes estao todos presentes no codigo, mas ficam invisiveis porque a variavel `canEdit` esta retornando `false`. Isso acontece por uma **race condition** no hook `useModulePermissions`:
+A pagina `Clientes.tsx` busca a permissao `canEdit` corretamente (linha 34), porem **nunca a utiliza** para esconder os botoes de acao. Todos os usuarios, mesmo sem permissao de edicao, conseguem ver e usar os botoes de Nova Empresa, Editar, Baixar, Reativar e Excluir.
 
-1. O hook `useUserRole` comeca com `isAdmin = false` enquanto carrega do banco
-2. Enquanto isso, `useModulePermissions` ja executa a consulta em `user_modules` e nao encontra nenhum registro para o modulo `honorarios-contmax`
-3. Resultado: `canEdit = false`, e os botoes nao aparecem
-4. Quando `isAdmin` finalmente vira `true`, o efeito deveria re-executar, mas em certas condicoes de timing ele falha
+O banco de dados possui RLS que bloqueia as operacoes, mas a interface nao reflete isso -- o usuario tenta a acao, recebe um erro silencioso, ou pior, pensa que a acao foi concluida.
 
 ## Solucao
 
-Corrigir o hook `useModulePermissions` para **aguardar** o carregamento do `useUserRole` antes de tomar qualquer decisao.
+Condicionar a exibicao dos botoes de acao ao valor de `canEdit`, no arquivo `src/pages/Clientes.tsx`.
 
 ## Alteracoes
 
-### 1. Arquivo: `src/hooks/useModulePermissions.ts`
+### Arquivo: `src/pages/Clientes.tsx`
 
-- Importar o `loading` do `useUserRole` alem de `isAdmin`
-- No `useEffect`, se `loading` do role ainda estiver `true`, nao fazer nada (aguardar)
-- Somente apos `loading = false`, verificar `isAdmin` e decidir se precisa consultar `user_modules`
-- Adicionar `loading` do role como dependencia do `useEffect`
+1. **Botao "Nova Empresa"** (linha 98-105): Renderizar somente se `canEdit` for `true`
+2. **Secao "Acoes" no painel lateral** (linhas 273-299): Renderizar os botoes Editar, Baixar/Reativar e Excluir somente se `canEdit` for `true`. Se o usuario nao tiver permissao, a secao de acoes nao aparece.
 
-Logica corrigida:
-```
-Se loading do role -> nao faz nada, mantém carregando
-Se isAdmin -> canEdit = true, pronto
-Senao -> consulta user_modules normalmente
-```
-
-### Detalhes tecnicos
-
-- O hook `useUserRole` ja retorna `{ isAdmin, loading }` - so precisamos usar o `loading`
-- Nenhuma alteracao de banco de dados necessaria
-- Nenhum componente precisa mudar, apenas o hook de permissoes
-- Os botoes de Salario Minimo, Incluir Empresa, Editar (lapis) e Excluir (lixeira com confirmacao) ja estao implementados e voltarao a aparecer assim que `canEdit = true`
+Nenhuma alteracao de banco de dados necessaria -- as politicas RLS ja protegem as operacoes. Esta correcao alinha a interface com as regras de seguranca existentes.
 
