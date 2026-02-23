@@ -96,12 +96,14 @@ export default function Clientes() {
         showLogout
         breadcrumbs={[{ label: "Portal", href: "/" }, { label: `Clientes ${orgInfo.nome}` }]}
         actions={
-          <Button
-            onClick={handleNew}
-            className="bg-accent text-accent-foreground hover:bg-accent/90"
-          >
-            <Plus className="mr-1 h-4 w-4" /> Nova Empresa
-          </Button>
+          canEdit ? (
+            <Button
+              onClick={handleNew}
+              className="bg-accent text-accent-foreground hover:bg-accent/90"
+            >
+              <Plus className="mr-1 h-4 w-4" /> Nova Empresa
+            </Button>
+          ) : undefined
         }
       />
 
@@ -270,6 +272,7 @@ export default function Clientes() {
                 <Separator />
 
                 {/* Actions */}
+                {canEdit && (
                 <div className="space-y-3">
                   <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Ações</h3>
                   <div className="flex flex-col gap-2">
@@ -297,6 +300,7 @@ export default function Clientes() {
                     </Button>
                   </div>
                 </div>
+                )}
               </div>
             </>
           )}
