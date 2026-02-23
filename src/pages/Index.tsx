@@ -51,6 +51,7 @@ const Index = () => {
   const [exteriorFilter, setExteriorFilter] = useState(false);
   const [alugueisFilter, setAlugueisFilter] = useState(false);
   const [dctfSmFilter, setDctfSmFilter] = useState(false);
+  const [questorFilter, setQuestorFilter] = useState(false);
   const [faturamentoEmpresa, setFaturamentoEmpresa] = useState<Empresa | null>(null);
 
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
@@ -84,7 +85,13 @@ const Index = () => {
       matchesDctfSm = fatTrimAnterior > 0;
     }
 
-    return matchesSearch && matchesRegime && matchesReinf && matchesNfExterior && matchesDctfSm;
+    let matchesQuestor = true;
+    if (questorFilter) {
+      const dados = e.meses[mesSelecionado];
+      matchesQuestor = dados.lancadoQuestor === "pendente";
+    }
+
+    return matchesSearch && matchesRegime && matchesReinf && matchesNfExterior && matchesDctfSm && matchesQuestor;
   });
 
   const handleFaturamento = useCallback((empresa: Empresa) => {
@@ -181,6 +188,11 @@ const Index = () => {
               <Checkbox checked={alugueisFilter} onCheckedChange={(v) => setAlugueisFilter(!!v)} />
               <FileText className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-muted-foreground">Aluguéis</span>
+            </label>
+            <label className="flex items-center gap-1.5 text-sm cursor-pointer border rounded-md px-3 py-1.5 bg-card hover:bg-muted/50 transition-colors">
+              <Checkbox checked={questorFilter} onCheckedChange={(v) => setQuestorFilter(!!v)} />
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-muted-foreground">Lanç. Questor</span>
             </label>
             {isFechamento && (
               <label className="flex items-center gap-1.5 text-sm cursor-pointer border rounded-md px-3 py-1.5 bg-card hover:bg-muted/50 transition-colors">
