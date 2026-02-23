@@ -1,72 +1,39 @@
 
-# Upgrade Visual do Comparativo Tributario
+# Botao Exportar Excel nos Modulos Clientes
 
-**Custo estimado: ~4-5 creditos**
+**Custo estimado: ~2 creditos**
 
 ## Resumo
 
-Atualizar o visual do modulo Comparativo Tributario para ficar mais moderno e sofisticado, inspirado no codigo de referencia enviado. As mudancas incluem: efeitos de glow, gradientes mais ricos, cards com bordas coloridas por variante, hover effects, tooltips customizados nos graficos e estilo de tabela mais refinado.
+Adicionar um botao "Exportar Excel" no header da pagina Clientes (usado tanto por Clientes P&G quanto Clientes Contmax). O botao exportara a lista filtrada de empresas para um arquivo `.xlsx`.
 
 ## Alteracoes
 
-### 1. `src/index.css` - Novos utilitarios CSS
+### 1. `src/lib/exportExcel.ts` - Nova funcao `exportClientesToExcel`
 
-Adicionar classes CSS inspiradas no codigo de referencia:
+Adicionar uma funcao simples que exporta a lista de clientes com as colunas visiveis na tabela:
 
-- `.gradient-hero`: gradiente radial sofisticado para o hero KPI (radial-gradient com primary/5 e primary/10)
-- `.glow-gain`: box-shadow com glow verde/primary sutil
-- `.glow-gold`: box-shadow com glow dourado/accent
-- `.card-variant-neutral`: borda esquerda cinza + hover sutil
-- `.card-variant-gain`: borda esquerda primary + glow primary no hover
-- `.card-variant-gold`: borda esquerda accent/dourada + glow dourado no hover
-- `.chart-card`: estilo de card com backdrop-filter e borda sutil para os graficos
+- No (numero)
+- Empresa (nome)
+- CNPJ
+- Regime Tributario
+- Emite NF (Sim/Nao)
+- Inicio Competencia
+- Status (Ativa / Baixada em DD/MM/YYYY)
+- Socios (nome, CPF, percentual de cada socio)
 
-### 2. `src/components/comparativo/ComparativoHeroKPI.tsx`
+O nome do arquivo sera `Clientes_{nomeOrg}.xlsx`.
 
-- Trocar classes do container para usar `gradient-hero` + `glow-gain`
-- Adicionar efeito de backdrop mais rico com gradiente radial
-- Aumentar o shadow para criar profundidade
+### 2. `src/pages/Clientes.tsx` - Botao no header
 
-### 3. `src/components/comparativo/ComparativoKPICards.tsx`
-
-- Adicionar borda esquerda colorida por variante (4px accent bar)
-- Adicionar efeito hover com elevacao e glow por variante
-- Icone com fundo mais vibrante e arredondamento maior
-- Valor principal com tamanho maior e fonte mono
-
-### 4. `src/components/comparativo/QuarterlyComparisonChart.tsx`
-
-- Card com classe `card-hover` para efeito de elevacao
-- Tooltip customizado com fundo escuro e borda arredondada
-- Cores das barras mais contrastantes (usar emerald/green para Real e orange para Presumido)
-
-### 5. `src/components/comparativo/TaxBreakdownChart.tsx`
-
-- Mesmas melhorias de card e tooltip do QuarterlyChart
-- Cores consistentes com o grafico trimestral
-
-### 6. `src/components/comparativo/MonthlyPISCOFINSChart.tsx`
-
-- Mesmas melhorias de card e tooltip
-- Altura aumentada para melhor leitura dos 12 meses
-
-### 7. `src/components/comparativo/ComparativoTable.tsx`
-
-- Header da tabela com gradiente escuro (`header-gradient` adaptado)
-- Texto do header em branco/claro
-- Linha de TOTAL com fundo highlight sutil
-- Coluna de diferenca com badge colorido (verde quando positivo)
-- Hover nas linhas com transicao suave
-
-### 8. `src/pages/ComparativoTributario.tsx`
-
-- Botoes flutuantes com backdrop-blur (glass effect)
-- Botao de exportar com gradiente primary
+- Importar `Download` do lucide-react e a nova funcao `exportClientesToExcel`
+- Adicionar o botao "Exportar Excel" ao lado do botao "Nova Empresa" na area de `actions` do AppHeader
+- O botao exporta a lista `filtered` (respeitando os filtros de busca e regime ativos)
+- Visivel para todos os usuarios (nao depende de `canEdit`)
 
 ## Detalhes Tecnicos
 
-- Sem dependencias novas (sem framer-motion) -- todas as animacoes via CSS existente
-- As cores usam as variaveis CSS ja definidas (--primary, --accent, --chart-1, --chart-2)
-- Adicionamos cores especificas para os efeitos de glow usando hsl com opacidade
-- Tooltip customizado dos graficos via componente inline do Recharts (prop `content`)
-- Compativel com dark mode pois usa variaveis CSS tematicas
+- Usa a biblioteca `xlsx` ja instalada no projeto
+- A funcao recebe `Empresa[]` e `nomeOrg: string` como parametros
+- Reutiliza o mesmo pattern do `exportToExcel` existente (json_to_sheet + writeFile)
+- Ambos os modulos (P&G e Contmax) usam a mesma pagina `Clientes.tsx` com slug diferente, entao a mudanca automaticamente se aplica aos dois
