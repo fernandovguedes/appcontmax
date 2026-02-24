@@ -1,5 +1,6 @@
 import { useRef, useCallback, useMemo } from "react";
 import { Empresa, MesKey, StatusEntrega, StatusExtrato, StatusQuestor, calcularDistribuicaoSocios, isMesFechamentoTrimestre, MESES_FECHAMENTO_TRIMESTRE, getMesesTrimestre, isMesDctfPosFechamento, getTrimestreFechamentoAnterior, calcularFaturamentoTrimestre } from "@/types/fiscal";
+import type { WhatsAppLogInfo } from "@/hooks/useWhatsAppLogs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge, ExtratoBadge, QuestorBadge } from "@/components/StatusBadge";
 import { DistribuicaoSociosPopover } from "@/components/DistribuicaoSociosPopover";
@@ -7,11 +8,12 @@ import { FaturamentoPopover } from "@/components/FaturamentoPopover";
 import { ReinfAlert } from "@/components/ReinfAlert";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Pencil, Trash2, FileText, FileX, DollarSign, Archive, RotateCcw, MessageCircle } from "lucide-react";
+import { Pencil, Trash2, FileText, FileX, DollarSign, Archive, RotateCcw, MessageCircle, AlertTriangle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { CustomFixedScrollbar } from "@/components/CustomFixedScrollbar";
 
 function isElegivel(empresa: Empresa, mes: MesKey): boolean {
@@ -38,9 +40,10 @@ interface EmpresaTableProps {
   onStatusChange: (empresaId: string, mesTrimestre: typeof MESES_FECHAMENTO_TRIMESTRE[number], campo: keyof Empresa["obrigacoes"]["marco"], valor: StatusEntrega) => void;
   onExtratoChange: (empresaId: string, mes: MesKey, valor: StatusExtrato) => void;
   onMesFieldChange: (empresaId: string, mes: MesKey, campo: string, valor: any) => void;
-  onSendWhatsApp?: (empresa: Empresa) => void;
+  onSendWhatsApp?: (empresa: Empresa, isResend?: boolean) => void;
   selectedIds?: Set<string>;
   onSelectionChange?: (selectedIds: Set<string>) => void;
+  whatsappLogs?: Map<string, WhatsAppLogInfo>;
 }
 
 const LIMITE_DISTRIBUICAO_SOCIO = 50000;
@@ -58,7 +61,7 @@ function calcularDistribuicaoTrimestral(empresa: Empresa, mesFechamento: MesKey)
   return totalFaturamento * 0.75;
 }
 
-export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit, onFaturamento, onDelete, onBaixar, onReativar, onStatusChange, onExtratoChange, onMesFieldChange, onSendWhatsApp, selectedIds, onSelectionChange }: EmpresaTableProps) {
+export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit, onFaturamento, onDelete, onBaixar, onReativar, onStatusChange, onExtratoChange, onMesFieldChange, onSendWhatsApp, selectedIds, onSelectionChange, whatsappLogs }: EmpresaTableProps) {
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
   const mesTrimestre = getMesFechamentoTrimestre(mesSelecionado);
   const isDctfPos = isMesDctfPosFechamento(mesSelecionado);
@@ -298,12 +301,32 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
                   }
                   <TableCell>
                     <div className="flex items-center justify-center gap-1">
-                      {onSendWhatsApp && (
-                        mes.extratoEnviado === "nao" ? (
-                          <Button variant="ghost" size="icon" onClick={() => onSendWhatsApp(empresa)} title="Enviar WhatsApp" className="text-green-600 hover:text-green-700">
-                            <MessageCircle className="h-4 w-4" />
-                          </Button>
-                        ) : (
+                      {onSendWhatsApp && (() => {
+                        const logInfo = whatsappLogs?.get(empresa.id);
+                        if (mes.extratoEnviado === "nao" && logInfo) {
+                          // Already sent - show resend warning
+                          const sentDate = format(new Date(logInfo.sentAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+                          return (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" onClick={() => onSendWhatsApp(empresa, true)} className="text-amber-500 hover:text-amber-600">
+                                    <AlertTriangle className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Enviado em {sentDate} por {logInfo.sentBy}. Clique para reenviar.</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        }
+                        if (mes.extratoEnviado === "nao") {
+                          return (
+                            <Button variant="ghost" size="icon" onClick={() => onSendWhatsApp(empresa)} title="Enviar WhatsApp" className="text-green-600 hover:text-green-700">
+                              <MessageCircle className="h-4 w-4" />
+                            </Button>
+                          );
+                        }
+                        return (
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -316,8 +339,8 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
                               <TooltipContent>Extrato já enviado</TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
-                        )
-                      )}
+                        );
+                      })()}
                       {onFaturamento &&
                       <Button variant="ghost" size="icon" onClick={() => onFaturamento(empresa)} title="Faturamento">
                           <DollarSign className="h-4 w-4" />

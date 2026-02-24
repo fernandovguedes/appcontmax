@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
 
     const userId = claimsData.claims.sub as string;
 
-    const { items, ticketStrategy, closeAfterSend } = await req.json();
+    const { items, ticketStrategy, closeAfterSend, competencia, message_type } = await req.json();
 
     if (!Array.isArray(items) || items.length === 0) {
       return new Response(JSON.stringify({ error: "items array is required" }), {
@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
     // Process sequentially to avoid rate limiting
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      const { empresaId, to, body } = item;
+      const { empresaId, to, body, is_resend, resend_reason } = item;
 
       let status = "success";
       let ticketId: string | null = null;
@@ -133,6 +133,10 @@ Deno.serve(async (req) => {
         batch_id: batchId,
         batch_index: i,
         batch_total: batchTotal,
+        competencia: competencia || null,
+        message_type: message_type || "extrato_nao_enviado",
+        is_resend: is_resend || false,
+        resend_reason: resend_reason || null,
       });
 
       results.push({
