@@ -6,6 +6,7 @@ import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { HonorariosTable } from "@/components/HonorariosTable";
 import { HonorariosEmpresaDialog } from "@/components/HonorariosEmpresaDialog";
 import { SalarioMinimoDialog } from "@/components/SalarioMinimoDialog";
+import { BomControleSyncButton } from "@/components/BomControleSyncButton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,6 +95,14 @@ export default function Honorarios() {
                 className="pl-9"
               />
             </div>
+            {canEdit && (
+              <BomControleSyncButton
+                empresas={filtered}
+                mes={mes}
+                calcularValores={calcularValores}
+                canEdit={canEdit}
+              />
+            )}
             {canEdit && (
               <Button
                 size="sm"

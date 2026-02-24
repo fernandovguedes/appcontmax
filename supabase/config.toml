@@ -14,3 +14,9 @@ verify_jwt = false
 
 [functions.onecode-score-ticket]
 verify_jwt = false
+
+[functions.sync-bomcontrole]
+verify_jwt = false
+
+[functions.sync-bomcontrole-cron]
+verify_jwt = false
