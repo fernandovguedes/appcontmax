@@ -60,7 +60,7 @@ export function useSyncAcessorias(tenantSlug: string | undefined, tenantId: stri
       .select("id, status, total_read, total_created, total_updated, total_skipped, total_errors, error_message, started_at, finished_at")
       .eq("tenant_id", tenantId)
       .order("started_at", { ascending: false })
-      .limit(10);
+      .limit(1);
     setHistory((data as SyncJob[]) ?? []);
     setLoadingHistory(false);
   }, [tenantId]);
