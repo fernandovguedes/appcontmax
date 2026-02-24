@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useEmpresas } from "@/hooks/useEmpresas";
+import { useWhatsAppLogs } from "@/hooks/useWhatsAppLogs";
+import { getCompetenciaAtual } from "@/lib/formatUtils";
 import {
   Empresa,
   MesKey,
@@ -49,6 +51,8 @@ const Index = () => {
 
   const { empresas, loading, updateEmpresa } = useEmpresas(organizacaoId);
   const [mesSelecionado, setMesSelecionado] = useState<MesKey>("janeiro");
+  const competencia = getCompetenciaAtual(mesSelecionado);
+  const { logsMap: whatsappLogs, invalidate: invalidateWhatsAppLogs } = useWhatsAppLogs(competencia);
   const [search, setSearch] = useState("");
   const [regimeFilter, setRegimeFilter] = useState<RegimeTributario | "todos">("todos");
   const [reinfFilter, setReinfFilter] = useState(false);
@@ -59,6 +63,7 @@ const Index = () => {
   const [questorFilter, setQuestorFilter] = useState(false);
   const [faturamentoEmpresa, setFaturamentoEmpresa] = useState<Empresa | null>(null);
   const [whatsappEmpresa, setWhatsappEmpresa] = useState<Empresa | null>(null);
+  const [whatsappIsResend, setWhatsappIsResend] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
 
@@ -153,21 +158,31 @@ const Index = () => {
     [empresas, updateEmpresa],
   );
 
-  const handleSendWhatsApp = useCallback((empresa: Empresa) => {
+  const handleSendWhatsApp = useCallback((empresa: Empresa, isResend?: boolean) => {
     if (!empresa.whatsapp) {
       toast({ title: "WhatsApp não cadastrado", description: "Esta empresa não possui número de WhatsApp cadastrado.", variant: "destructive" });
       return;
     }
+    setWhatsappIsResend(!!isResend);
     setWhatsappEmpresa(empresa);
   }, [toast]);
 
-  const handleWhatsAppConfirm = useCallback(async () => {
+  const handleWhatsAppConfirm = useCallback(async (opts?: { is_resend?: boolean; resend_reason?: string }) => {
     if (!whatsappEmpresa) return;
-    const competencia = `${MES_LABELS[mesSelecionado]}/2026`;
-    const body = `Olá, ${whatsappEmpresa.nome}! Identificamos que o extrato de ${competencia} ainda não foi enviado. Pode nos encaminhar por aqui hoje?`;
+    const comp = `${MES_LABELS[mesSelecionado]}/2026`;
+    const body = `Olá, ${whatsappEmpresa.nome}! Identificamos que o extrato de ${comp} ainda não foi enviado. Pode nos encaminhar por aqui hoje?`;
 
     const { data, error } = await supabase.functions.invoke("send-whatsapp", {
-      body: { to: whatsappEmpresa.whatsapp, body, empresa_id: whatsappEmpresa.id, ticketStrategy: "create" },
+      body: {
+        to: whatsappEmpresa.whatsapp,
+        body,
+        empresa_id: whatsappEmpresa.id,
+        ticketStrategy: "create",
+        competencia,
+        message_type: "extrato_nao_enviado",
+        is_resend: opts?.is_resend || false,
+        resend_reason: opts?.resend_reason || null,
+      },
     });
 
     if (error || data?.error) {
@@ -176,7 +191,8 @@ const Index = () => {
     }
 
     toast({ title: "Mensagem enviada", description: `WhatsApp enviado para ${whatsappEmpresa.nome}.` });
-  }, [whatsappEmpresa, mesSelecionado, toast]);
+    invalidateWhatsAppLogs();
+  }, [whatsappEmpresa, mesSelecionado, competencia, toast, invalidateWhatsAppLogs]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -280,6 +296,7 @@ const Index = () => {
           onSendWhatsApp={handleSendWhatsApp}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
+          whatsappLogs={whatsappLogs}
         />
       </main>
 
@@ -295,9 +312,11 @@ const Index = () => {
         onOpenChange={setBatchDialogOpen}
         empresas={filtered.filter((e) => selectedIds.has(e.id))}
         mesSelecionado={mesSelecionado}
+        whatsappLogs={whatsappLogs}
         onComplete={() => {
           setSelectedIds(new Set());
           setBatchDialogOpen(false);
+          invalidateWhatsAppLogs();
         }}
       />
 
@@ -315,10 +334,12 @@ const Index = () => {
       {whatsappEmpresa && (
         <WhatsAppConfirmDialog
           open={!!whatsappEmpresa}
-          onOpenChange={(open) => { if (!open) setWhatsappEmpresa(null); }}
+          onOpenChange={(open) => { if (!open) { setWhatsappEmpresa(null); setWhatsappIsResend(false); } }}
           empresa={whatsappEmpresa}
           mesSelecionado={mesSelecionado}
           onConfirm={handleWhatsAppConfirm}
+          isResend={whatsappIsResend}
+          sentInfo={whatsappIsResend ? whatsappLogs.get(whatsappEmpresa.id) : undefined}
         />
       )}
     </div>

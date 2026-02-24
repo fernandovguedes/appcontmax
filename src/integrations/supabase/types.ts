@@ -298,9 +298,13 @@ export type Database = {
           batch_index: number | null
           batch_total: number | null
           body: string
+          competencia: string | null
           created_at: string
           empresa_id: string
           id: string
+          is_resend: boolean | null
+          message_type: string | null
+          resend_reason: string | null
           response_raw: Json | null
           status: string
           ticket_id: string | null
@@ -312,9 +316,13 @@ export type Database = {
           batch_index?: number | null
           batch_total?: number | null
           body: string
+          competencia?: string | null
           created_at?: string
           empresa_id: string
           id?: string
+          is_resend?: boolean | null
+          message_type?: string | null
+          resend_reason?: string | null
           response_raw?: Json | null
           status?: string
           ticket_id?: string | null
@@ -326,9 +334,13 @@ export type Database = {
           batch_index?: number | null
           batch_total?: number | null
           body?: string
+          competencia?: string | null
           created_at?: string
           empresa_id?: string
           id?: string
+          is_resend?: boolean | null
+          message_type?: string | null
+          resend_reason?: string | null
           response_raw?: Json | null
           status?: string
           ticket_id?: string | null

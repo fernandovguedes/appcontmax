@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     }
 
     const userId = claimsData.claims.sub as string;
-    const { to, body, empresa_id, ticketStrategy } = await req.json();
+    const { to, body, empresa_id, ticketStrategy, competencia, message_type, is_resend, resend_reason } = await req.json();
 
     if (!to || !body || !empresa_id) {
       return new Response(JSON.stringify({ error: "Missing required fields: to, body, empresa_id" }), {
@@ -120,6 +120,10 @@ Deno.serve(async (req) => {
       status,
       ticket_id: ticketId,
       response_raw: closeError ? { ...responseRaw, close_error: closeError } : responseRaw,
+      competencia: competencia || null,
+      message_type: message_type || "extrato_nao_enviado",
+      is_resend: is_resend || false,
+      resend_reason: resend_reason || null,
     });
 
     if (status === "error") {
