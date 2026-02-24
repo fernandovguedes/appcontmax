@@ -111,9 +111,10 @@ export function useEmpresas(organizacaoId?: string) {
   const { toast } = useToast();
 
   const seedDatabase = useCallback(async () => {
+    if (!organizacaoId) return false;
     try {
       const { SEED_DATA } = await import("@/data/seed");
-      const rows = SEED_DATA.map(empresaToFullRow);
+      const rows = SEED_DATA.map((e) => ({ ...empresaToFullRow(e), organizacao_id: organizacaoId }));
 
       for (let i = 0; i < rows.length; i += 50) {
         const batch = rows.slice(i, i + 50);
@@ -130,7 +131,7 @@ export function useEmpresas(organizacaoId?: string) {
       console.error("Seed error:", err);
       return false;
     }
-  }, [toast]);
+  }, [organizacaoId, toast]);
 
   const fetchEmpresas = useCallback(async () => {
     if (!organizacaoId) {
