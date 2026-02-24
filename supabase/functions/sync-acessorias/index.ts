@@ -335,22 +335,24 @@ Deno.serve(async (req) => {
     }).select("id").single();
     const jobId = job!.id;
 
-    console.log(`[sync-acessorias] Job ${jobId} created, returning immediately. Processing in background.`);
+    console.log(`[sync-acessorias] Job ${jobId} created, processing synchronously.`);
 
-    // @ts-ignore: EdgeRuntime.waitUntil is available in Supabase Edge
-    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
-      // @ts-ignore
-      EdgeRuntime.waitUntil(runSync(supabase, jobId, tenantId, tenantSlug, apiToken, baseUrl));
-    } else {
-      runSync(supabase, jobId, tenantId, tenantSlug, apiToken, baseUrl);
-    }
+    await runSync(supabase, jobId, tenantId, tenantSlug, apiToken, baseUrl);
+
+    // Fetch final job status to return
+    const { data: finalJob } = await supabase.from("sync_jobs").select("*").eq("id", jobId).single();
 
     return new Response(
       JSON.stringify({
         success: true,
         job_id: jobId,
-        status: "running",
-        message: "Sincronização iniciada em background. Acompanhe o status pelo histórico.",
+        status: finalJob?.status ?? "success",
+        total_read: finalJob?.total_read ?? 0,
+        total_created: finalJob?.total_created ?? 0,
+        total_updated: finalJob?.total_updated ?? 0,
+        total_skipped: finalJob?.total_skipped ?? 0,
+        total_errors: finalJob?.total_errors ?? 0,
+        message: "Sincronização concluída.",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
