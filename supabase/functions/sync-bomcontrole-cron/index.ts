@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
           Authorization: `Bearer ${anonKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ action: "sync_payments", tenant_id: "contmax" }),
       },
     );
 

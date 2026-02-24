@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,7 +31,7 @@ function getApiKey(tenantId: string): string {
   return key;
 }
 
-function sanitizeForLog(obj: any): any {
+function sanitizeForLog(obj: unknown): unknown {
   if (!obj) return obj;
   const s = JSON.stringify(obj);
   return JSON.parse(s.replace(/ApiKey\s+[^\s"]+/gi, "ApiKey ***"));
@@ -50,34 +50,39 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 2): P
   throw new Error("Unreachable");
 }
 
-async function syncInvoiceValues(
-  supabase: any,
-  tenantId: string,
-  competencia: string,
-  items: SyncItem[],
-  apiKey: string,
-): Promise<SyncResult[]> {
+// deno-lint-ignore no-explicit-any
+async function logAction(supabase: any, tenantId: string, competencia: string | null, portalCompanyId: string | null, action: string, ok: boolean, durationMs: number, requestJson: unknown, responseJson: unknown) {
+  await supabase.from("bc_sync_log").insert({
+    tenant_id: tenantId, competencia, portal_company_id: portalCompanyId, action, ok,
+    duration_ms: durationMs, request_json: sanitizeForLog(requestJson), response_json: sanitizeForLog(responseJson),
+  });
+}
+
+// deno-lint-ignore no-explicit-any
+async function upsertInvoiceMap(supabase: any, tenantId: string, portalCompanyId: string, competencia: string, bcContractId: number, bcInvoiceId: number, dueDate: string | null, lastSyncedValue: number | null, status: string, message: string | null) {
+  const row: Record<string, unknown> = {
+    tenant_id: tenantId, portal_company_id: portalCompanyId, competencia,
+    bc_contract_id: bcContractId, bc_invoice_id: bcInvoiceId,
+    due_date: dueDate, last_synced_value: lastSyncedValue, status, message,
+  };
+  if (lastSyncedValue != null) row.synced_at = new Date().toISOString();
+  await supabase.from("bc_invoice_map").upsert(row, { onConflict: "tenant_id,portal_company_id,competencia" });
+}
+
+// deno-lint-ignore no-explicit-any
+async function syncInvoiceValues(supabase: any, tenantId: string, competencia: string, items: SyncItem[], apiKey: string): Promise<SyncResult[]> {
   const [yearStr, monthStr] = competencia.split("-");
   const year = parseInt(yearStr);
   const month = parseInt(monthStr);
   const lastDay = lastDayOfMonth(year, month);
   const inicioPeriodo = `${competencia}-01 00:00:00`;
   const terminoPeriodo = `${competencia}-${String(lastDay).padStart(2, "0")} 23:59:59`;
-
   const results: SyncResult[] = [];
 
   for (const item of items) {
     const t0 = Date.now();
     try {
-      // 1. Find contract
-      const { data: contract } = await supabase
-        .from("bc_contracts")
-        .select("bc_contract_id")
-        .eq("tenant_id", tenantId)
-        .eq("portal_company_id", item.portal_company_id)
-        .eq("active", true)
-        .maybeSingle();
-
+      const { data: contract } = await supabase.from("bc_contracts").select("bc_contract_id").eq("tenant_id", tenantId).eq("portal_company_id", item.portal_company_id).eq("active", true).maybeSingle();
       if (!contract) {
         results.push({ portal_company_id: item.portal_company_id, status: "failed", message: "Contrato não encontrado em bc_contracts" });
         await logAction(supabase, tenantId, competencia, item.portal_company_id, "resolve_invoice", false, Date.now() - t0, null, { error: "no contract" });
@@ -85,12 +90,8 @@ async function syncInvoiceValues(
       }
 
       const bcContractId = contract.bc_contract_id;
-
-      // 2. Fetch contract invoices
       const url = `${BC_BASE}/VendaContrato/Obter/${bcContractId}?inicioPeriodo=${encodeURIComponent(inicioPeriodo)}&terminoPeriodo=${encodeURIComponent(terminoPeriodo)}`;
-      const res = await fetchWithRetry(url, {
-        headers: { Authorization: `ApiKey ${apiKey}`, "Content-Type": "application/json" },
-      });
+      const res = await fetchWithRetry(url, { headers: { Authorization: `ApiKey ${apiKey}`, "Content-Type": "application/json" } });
 
       if (!res.ok) {
         const errText = await res.text();
@@ -100,8 +101,9 @@ async function syncInvoiceValues(
       }
 
       const contractData = await res.json();
-      const faturas = contractData?.Faturas ?? [];
-
+      // deno-lint-ignore no-explicit-any
+      const faturas: any[] = contractData?.Faturas ?? [];
+      // deno-lint-ignore no-explicit-any
       let invoice: any = null;
       let status = "synced";
       let message: string | undefined;
@@ -109,7 +111,6 @@ async function syncInvoiceValues(
       if (faturas.length === 0) {
         results.push({ portal_company_id: item.portal_company_id, status: "not_found", message: "Nenhuma fatura encontrada no período" });
         await logAction(supabase, tenantId, competencia, item.portal_company_id, "resolve_invoice", true, Date.now() - t0, { url }, { faturas_count: 0 });
-        // Upsert with not_found status
         await upsertInvoiceMap(supabase, tenantId, item.portal_company_id, competencia, bcContractId, 0, null, null, "not_found", "Nenhuma fatura no período");
         continue;
       }
@@ -117,13 +118,13 @@ async function syncInvoiceValues(
       if (faturas.length === 1) {
         invoice = faturas[0];
       } else {
-        // Multiple invoices: prefer TipoFatura == 0
+        // deno-lint-ignore no-explicit-any
         const faturamento = faturas.filter((f: any) => f.TipoFatura === 0);
         if (faturamento.length === 1) {
           invoice = faturamento[0];
         } else {
-          // Pick closest to mid-month
           const midMonth = new Date(year, month - 1, 15).getTime();
+          // deno-lint-ignore no-explicit-any
           invoice = faturas.reduce((best: any, f: any) => {
             const d = Math.abs(new Date(f.DataVencimento).getTime() - midMonth);
             const bestD = Math.abs(new Date(best.DataVencimento).getTime() - midMonth);
@@ -137,22 +138,15 @@ async function syncInvoiceValues(
       const bcInvoiceId = invoice.Id;
       await logAction(supabase, tenantId, competencia, item.portal_company_id, "resolve_invoice", true, Date.now() - t0, { url }, { faturas_count: faturas.length, selected_id: bcInvoiceId });
 
-      // 3. Check if value changed
-      const { data: existingMap } = await supabase
-        .from("bc_invoice_map")
-        .select("last_synced_value")
-        .eq("tenant_id", tenantId)
-        .eq("portal_company_id", item.portal_company_id)
-        .eq("competencia", competencia)
-        .maybeSingle();
-
+      // Check if value changed
+      const { data: existingMap } = await supabase.from("bc_invoice_map").select("last_synced_value").eq("tenant_id", tenantId).eq("portal_company_id", item.portal_company_id).eq("competencia", competencia).maybeSingle();
       if (existingMap && Number(existingMap.last_synced_value) === item.valor_total_mes) {
         await upsertInvoiceMap(supabase, tenantId, item.portal_company_id, competencia, bcContractId, bcInvoiceId, invoice.DataVencimento, item.valor_total_mes, "unchanged", null);
         results.push({ portal_company_id: item.portal_company_id, status: "unchanged", bc_invoice_id: bcInvoiceId });
         continue;
       }
 
-      // 4. Update value
+      // Update value via PUT
       const t1 = Date.now();
       const putUrl = `${BC_BASE}/Fatura/AlterarValor/${bcInvoiceId}`;
       const putRes = await fetchWithRetry(putUrl, {
@@ -160,7 +154,6 @@ async function syncInvoiceValues(
         headers: { Authorization: `ApiKey ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({ Valor: item.valor_total_mes }),
       });
-
       const putBody = await putRes.text();
       await logAction(supabase, tenantId, competencia, item.portal_company_id, "update_value", putRes.ok, Date.now() - t1, { url: putUrl, body: { Valor: item.valor_total_mes } }, { status: putRes.status, body: putBody.substring(0, 500) });
 
@@ -181,8 +174,23 @@ async function syncInvoiceValues(
   return results;
 }
 
+function getMesKeyFromCompetencia(competencia: string): string | null {
+  const month = parseInt(competencia.split("-")[1]);
+  const keys = ["janeiro", "fevereiro", "marco", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+  return keys[month - 1] ?? null;
+}
+
+function formatDateBR(isoDate: string): string {
+  try {
+    const d = new Date(isoDate);
+    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  } catch {
+    return isoDate;
+  }
+}
+
+// deno-lint-ignore no-explicit-any
 async function syncPayments(supabase: any, tenantId: string, apiKey: string): Promise<{ processed: number; paid: number; errors: number }> {
-  // Get unpaid invoices from current and last 3 months
   const now = new Date();
   const months: string[] = [];
   for (let i = 0; i < 4; i++) {
@@ -190,14 +198,7 @@ async function syncPayments(supabase: any, tenantId: string, apiKey: string): Pr
     months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
 
-  const { data: unpaid } = await supabase
-    .from("bc_invoice_map")
-    .select("*")
-    .eq("tenant_id", tenantId)
-    .eq("paid", false)
-    .in("competencia", months)
-    .not("status", "in", '("not_found","failed")');
-
+  const { data: unpaid } = await supabase.from("bc_invoice_map").select("*").eq("tenant_id", tenantId).eq("paid", false).in("competencia", months).not("status", "in", '("not_found","failed")');
   if (!unpaid || unpaid.length === 0) return { processed: 0, paid: 0, errors: 0 };
 
   let paidCount = 0;
@@ -214,9 +215,7 @@ async function syncPayments(supabase: any, tenantId: string, apiKey: string): Pr
       const terminoPeriodo = `${inv.competencia}-${String(lastDay).padStart(2, "0")} 23:59:59`;
 
       const url = `${BC_BASE}/VendaContrato/Obter/${inv.bc_contract_id}?inicioPeriodo=${encodeURIComponent(inicioPeriodo)}&terminoPeriodo=${encodeURIComponent(terminoPeriodo)}`;
-      const res = await fetchWithRetry(url, {
-        headers: { Authorization: `ApiKey ${apiKey}`, "Content-Type": "application/json" },
-      });
+      const res = await fetchWithRetry(url, { headers: { Authorization: `ApiKey ${apiKey}`, "Content-Type": "application/json" } });
 
       if (!res.ok) {
         errorCount++;
@@ -225,6 +224,7 @@ async function syncPayments(supabase: any, tenantId: string, apiKey: string): Pr
       }
 
       const data = await res.json();
+      // deno-lint-ignore no-explicit-any
       const fatura = (data?.Faturas ?? []).find((f: any) => f.Id === inv.bc_invoice_id);
 
       if (!fatura) {
@@ -233,37 +233,18 @@ async function syncPayments(supabase: any, tenantId: string, apiKey: string): Pr
       }
 
       if (fatura.Quitado === true && fatura.DataPagamento) {
-        // Update bc_invoice_map
-        await supabase
-          .from("bc_invoice_map")
-          .update({
-            paid: true,
-            payment_date: fatura.DataPagamento,
-            payment_value: fatura.ValorPagamento ?? fatura.Valor,
-            last_payment_sync_at: new Date().toISOString(),
-          })
-          .eq("id", inv.id);
+        await supabase.from("bc_invoice_map").update({
+          paid: true, payment_date: fatura.DataPagamento, payment_value: fatura.ValorPagamento ?? fatura.Valor, last_payment_sync_at: new Date().toISOString(),
+        }).eq("id", inv.id);
 
-        // Update honorario meses data with payment info
-        const { data: honEmpresa } = await supabase
-          .from("honorarios_empresas")
-          .select("id, meses")
-          .eq("empresa_id", inv.portal_company_id)
-          .maybeSingle();
-
+        const { data: honEmpresa } = await supabase.from("honorarios_empresas").select("id, meses").eq("empresa_id", inv.portal_company_id).maybeSingle();
         if (honEmpresa) {
           const mesKey = getMesKeyFromCompetencia(inv.competencia);
           if (mesKey) {
             const meses = honEmpresa.meses ?? {};
             const mesData = meses[mesKey] ?? {};
-            meses[mesKey] = {
-              ...mesData,
-              data_pagamento: formatDateBR(fatura.DataPagamento),
-            };
-            await supabase
-              .from("honorarios_empresas")
-              .update({ meses })
-              .eq("id", honEmpresa.id);
+            meses[mesKey] = { ...mesData, data_pagamento: formatDateBR(fatura.DataPagamento) };
+            await supabase.from("honorarios_empresas").update({ meses }).eq("id", honEmpresa.id);
           }
         }
 
@@ -279,61 +260,7 @@ async function syncPayments(supabase: any, tenantId: string, apiKey: string): Pr
   return { processed: unpaid.length, paid: paidCount, errors: errorCount };
 }
 
-function getMesKeyFromCompetencia(competencia: string): string | null {
-  const month = parseInt(competencia.split("-")[1]);
-  const keys = ["janeiro", "fevereiro", "marco", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-  return keys[month - 1] ?? null;
-}
-
-function formatDateBR(isoDate: string): string {
-  try {
-    const d = new Date(isoDate);
-    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-  } catch {
-    return isoDate;
-  }
-}
-
-async function upsertInvoiceMap(
-  supabase: any, tenantId: string, portalCompanyId: string, competencia: string,
-  bcContractId: number, bcInvoiceId: number, dueDate: string | null,
-  lastSyncedValue: number | null, status: string, message: string | null,
-) {
-  await supabase.from("bc_invoice_map").upsert(
-    {
-      tenant_id: tenantId,
-      portal_company_id: portalCompanyId,
-      competencia,
-      bc_contract_id: bcContractId,
-      bc_invoice_id: bcInvoiceId,
-      due_date: dueDate,
-      last_synced_value: lastSyncedValue,
-      synced_at: lastSyncedValue != null ? new Date().toISOString() : undefined,
-      status,
-      message,
-    },
-    { onConflict: "tenant_id,portal_company_id,competencia" },
-  );
-}
-
-async function logAction(
-  supabase: any, tenantId: string, competencia: string | null,
-  portalCompanyId: string | null, action: string, ok: boolean,
-  durationMs: number, requestJson: any, responseJson: any,
-) {
-  await supabase.from("bc_sync_log").insert({
-    tenant_id: tenantId,
-    competencia,
-    portal_company_id: portalCompanyId,
-    action,
-    ok,
-    duration_ms: durationMs,
-    request_json: sanitizeForLog(requestJson),
-    response_json: sanitizeForLog(responseJson),
-  });
-}
-
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -344,26 +271,20 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
 
     const url = new URL(req.url);
-    const action = url.searchParams.get("action") ?? "sync_values";
+    const body = await req.json().catch(() => ({}));
+    const action = url.searchParams.get("action") ?? body.action ?? "sync_values";
 
     if (action === "sync_values") {
-      const body = await req.json();
-      const { tenant_id, competencia, items } = body as {
-        tenant_id: string;
-        competencia: string;
-        items: SyncItem[];
-      };
+      const { tenant_id, competencia, items } = body as { tenant_id: string; competencia: string; items: SyncItem[] };
 
       if (!tenant_id || !competencia || !items?.length) {
         return new Response(JSON.stringify({ error: "Missing tenant_id, competencia, or items" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       const apiKey = getApiKey(tenant_id);
       const results = await syncInvoiceValues(supabase, tenant_id, competencia, items, apiKey);
-
       const summary = {
         total: results.length,
         synced: results.filter((r) => r.status === "synced").length,
@@ -379,24 +300,21 @@ Deno.serve(async (req) => {
     }
 
     if (action === "sync_payments") {
-      const tenantId = url.searchParams.get("tenant_id") ?? "contmax";
+      const tenantId = url.searchParams.get("tenant_id") ?? body.tenant_id ?? "contmax";
       const apiKey = getApiKey(tenantId);
       const result = await syncPayments(supabase, tenantId, apiKey);
-
       return new Response(JSON.stringify(result), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     return new Response(JSON.stringify({ error: "Unknown action" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     console.error("sync-bomcontrole error:", err);
     return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
