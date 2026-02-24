@@ -36,11 +36,9 @@ serve(async (req) => {
     const isServiceRole = token === serviceRoleKey;
 
     if (!isServiceRole) {
-      const anonClient = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_ANON_KEY")!,
-        { global: { headers: { Authorization: authHeader } } }
-      );
+      const anonClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: authHeader } },
+      });
       const { error: claimsError } = await anonClient.auth.getClaims(token);
       if (claimsError) {
         return jsonResp({ error: "Unauthorized" }, 401);
@@ -54,10 +52,7 @@ serve(async (req) => {
 
     console.log("Scoring ticket:", ticket_id);
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      serviceRoleKey
-    );
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, serviceRoleKey);
 
     // Fetch messages
     const { data: messages, error: msgError } = await supabase
@@ -88,7 +83,13 @@ serve(async (req) => {
         .select()
         .single();
       if (saveErr) throw new Error(saveErr.message);
-      return jsonResp({ ok: true, score: saved, skipped: true, reason: "insufficient_messages", elapsed_ms: Date.now() - t0 });
+      return jsonResp({
+        ok: true,
+        score: saved,
+        skipped: true,
+        reason: "insufficient_messages",
+        elapsed_ms: Date.now() - t0,
+      });
     }
 
     // Build transcript
@@ -107,22 +108,46 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    const systemPrompt = `Você é um avaliador de qualidade de atendimento ao cliente via WhatsApp.
-Avalie a conversa a seguir nos 5 critérios abaixo, atribuindo notas de 0.0 a 10.0 (com 1 casa decimal).
+    const systemPrompt = `Você é um auditor interno de qualidade de atendimento da Contmax Contabilidade.
 
-Critérios:
-1. clareza - Comunicação clara e sem ambiguidade
-2. cordialidade - Educação, empatia e tom amigável
-3. objetividade - Foco na resolução sem divagações
-4. resolucao - Efetividade em resolver o problema do cliente
-5. profissionalismo - Aderência a boas práticas e postura profissional
+A Contmax é um escritório contábil profissional, técnico e orientado à clareza tributária e responsabilidade legal.
 
-Regras:
-- Se o atendente não respondeu ou houve apenas mensagens do cliente, atribua notas baixas.
-- score_final = (clareza*0.25 + cordialidade*0.15 + objetividade*0.20 + resolucao*0.30 + profissionalismo*0.10) * 10, arredondado para 1 decimal.
-- feedback: texto curto (máximo 150 palavras) em português.
-- pontos_fortes: lista de 1-3 pontos fortes observados.
-- pontos_melhoria: lista de 1-3 pontos a melhorar.`;
+Avalie o atendimento abaixo considerando o padrão Contmax:
+
+Princípios obrigatórios:
+- Comunicação clara e objetiva
+- Linguagem profissional (sem excesso de informalidade, gírias ou emojis excessivos)
+- Segurança técnica (não prometer o que não pode cumprir)
+- Organização da resposta (respostas completas e estruturadas)
+- Foco na resolução real da demanda
+- Postura respeitosa e cordial
+- Não transferir insegurança ao cliente
+- Não deixar perguntas sem resposta
+
+Critérios de avaliação (0 a 10):
+
+1. Clareza – Explicação compreensível e didática.
+2. Cordialidade – Educação e respeito profissional.
+3. Objetividade – Respostas diretas, sem enrolação.
+4. Resolução – Realmente resolveu ou encaminhou corretamente?
+5. Profissionalismo – Linguagem técnica adequada, responsabilidade e postura contábil correta.
+
+Regras importantes:
+- Não penalize o atendente por erro do cliente.
+- Penalize respostas vagas, inseguras ou que transfiram responsabilidade indevidamente.
+- Penalize promessas sem base técnica.
+- Se o atendimento for exemplar, permita notas altas.
+- Seja justo e consistente.
+
+Calcule score_final como média ponderada:
+Resolução 30%
+Clareza 25%
+Objetividade 20%
+Profissionalismo 15%
+Cordialidade 10%
+
+Retorne APENAS JSON válido no formato especificado.
+Não inclua comentários fora do JSON.`;
 
     const aiT0 = Date.now();
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -156,7 +181,17 @@ Regras:
                   pontos_fortes: { type: "array", items: { type: "string" }, description: "1-3 strengths" },
                   pontos_melhoria: { type: "array", items: { type: "string" }, description: "1-3 improvements" },
                 },
-                required: ["clareza", "cordialidade", "objetividade", "resolucao", "profissionalismo", "score_final", "feedback", "pontos_fortes", "pontos_melhoria"],
+                required: [
+                  "clareza",
+                  "cordialidade",
+                  "objetividade",
+                  "resolucao",
+                  "profissionalismo",
+                  "score_final",
+                  "feedback",
+                  "pontos_fortes",
+                  "pontos_melhoria",
+                ],
                 additionalProperties: false,
               },
             },
@@ -185,9 +220,10 @@ Regras:
       throw new Error("AI did not return structured evaluation");
     }
 
-    const evaluation = typeof toolCall.function.arguments === "string"
-      ? JSON.parse(toolCall.function.arguments)
-      : toolCall.function.arguments;
+    const evaluation =
+      typeof toolCall.function.arguments === "string"
+        ? JSON.parse(toolCall.function.arguments)
+        : toolCall.function.arguments;
 
     // Validate ranges
     const clamp = (v: unknown, min: number, max: number): number => {
@@ -203,9 +239,10 @@ Regras:
     const conformidade = clamp(evaluation.profissionalismo, 0, 10); // maps to DB column "conformidade"
 
     // Recalculate to ensure consistency
-    const scoreFinal = Math.round(
-      (clareza * 0.25 + cordialidade * 0.15 + objetividade * 0.20 + resolucao * 0.30 + conformidade * 0.10) * 100
-    ) / 10;
+    const scoreFinal =
+      Math.round(
+        (clareza * 0.25 + cordialidade * 0.15 + objetividade * 0.2 + resolucao * 0.3 + conformidade * 0.1) * 100,
+      ) / 10;
 
     const scoreRow = {
       ticket_id: String(ticket_id),
@@ -219,7 +256,9 @@ Regras:
       score_final: scoreFinal,
       feedback: String(evaluation.feedback || "").slice(0, 2000),
       pontos_fortes: Array.isArray(evaluation.pontos_fortes) ? evaluation.pontos_fortes.map(String).slice(0, 5) : [],
-      pontos_melhoria: Array.isArray(evaluation.pontos_melhoria) ? evaluation.pontos_melhoria.map(String).slice(0, 5) : [],
+      pontos_melhoria: Array.isArray(evaluation.pontos_melhoria)
+        ? evaluation.pontos_melhoria.map(String).slice(0, 5)
+        : [],
       model_used: "google/gemini-3-flash-preview",
       organizacao_id: organizacaoId,
     };
@@ -233,7 +272,14 @@ Regras:
     if (insertError) throw new Error(insertError.message);
 
     const totalElapsed = Date.now() - t0;
-    console.log("Score saved. Total elapsed:", totalElapsed, "ms. AI elapsed:", aiElapsed, "ms. Tokens:", JSON.stringify(usage ?? "N/A"));
+    console.log(
+      "Score saved. Total elapsed:",
+      totalElapsed,
+      "ms. AI elapsed:",
+      aiElapsed,
+      "ms. Tokens:",
+      JSON.stringify(usage ?? "N/A"),
+    );
 
     return jsonResp({
       ok: true,
