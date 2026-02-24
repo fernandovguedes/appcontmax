@@ -30,12 +30,12 @@ interface TicketScore {
   ticket_id: string;
   user_id: string | null;
   user_name: string | null;
-  clareza: number;
-  cordialidade: number;
-  objetividade: number;
-  resolucao: number;
-  conformidade: number;
-  score_final: number;
+  clareza: number | null;
+  cordialidade: number | null;
+  objetividade: number | null;
+  resolucao: number | null;
+  conformidade: number | null;
+  score_final: number | null;
   feedback: string | null;
   scored_at: string;
   organizacao_id: string;
@@ -196,8 +196,9 @@ export default function QualidadeAtendimento() {
   }, [scores]);
 
   // KPIs
-  const totalTickets = scores.length;
-  const avgScore = totalTickets > 0 ? scores.reduce((s, t) => s + t.score_final, 0) / totalTickets : 0;
+  const validScores = scores.filter((s) => s.score_final != null);
+  const totalTickets = validScores.length;
+  const avgScore = totalTickets > 0 ? validScores.reduce((sum, t) => sum + (t.score_final ?? 0), 0) / totalTickets : 0;
   const topAttendant = ranking.length > 0 ? ranking[0].name : "—";
 
   const handleScore = async (ticketId: string) => {
@@ -397,8 +398,8 @@ export default function QualidadeAtendimento() {
                           <TableRow key={s.id} className="cursor-pointer" onClick={() => setExpandedTicket(expandedTicket === s.id ? null : s.id)}>
                             <TableCell className="font-mono text-xs">{s.ticket_id}</TableCell>
                             <TableCell>{s.user_name || "—"}</TableCell>
-                            <TableCell className={`text-center font-semibold ${scoreColor(s.score_final)}`}>
-                              {s.score_final.toFixed(1)}
+                            <TableCell className={`text-center font-semibold ${s.score_final != null ? scoreColor(s.score_final) : ""}`}>
+                              {s.score_final != null ? s.score_final.toFixed(1) : "—"}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {new Date(s.scored_at).toLocaleDateString("pt-BR")}
