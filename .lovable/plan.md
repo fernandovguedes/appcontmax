@@ -1,17 +1,14 @@
 
 
-## Remover painel de Webhook Errors da pagina Qualidade de Atendimento
+## Mostrar apenas a ultima sincronizacao no historico
 
-Alteracao simples na pagina `src/pages/QualidadeAtendimento.tsx`:
+Alteracao simples: limitar o historico de sincronizacoes para exibir apenas o registro mais recente, em vez dos 10 ultimos.
 
-1. Remover a linha de import do `WebhookErrorsPanel` (linha 23)
-2. Remover a renderizacao condicional `{isAdmin && <WebhookErrorsPanel />}` (linha 480)
-
-O componente `WebhookErrorsPanel` continuara existindo no projeto caso seja necessario usa-lo em outro lugar futuramente (ex: pagina Admin).
-
-### Detalhes tecnicos
+### Arquivo alterado
 
 | Arquivo | Alteracao |
 |---|---|
-| `src/pages/QualidadeAtendimento.tsx` | Remover import (linha 23) e uso (linha 480) do WebhookErrorsPanel |
+| `src/hooks/useSyncAcessorias.ts` | Mudar `.limit(10)` para `.limit(1)` na query de `fetchHistory` (linha 46) |
+
+Com isso, a secao "Historico de Sincronizacoes" continuara funcionando normalmente, mas mostrara apenas a ultima sincronizacao realizada.
 
