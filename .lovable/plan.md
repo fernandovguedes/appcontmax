@@ -1,40 +1,117 @@
 
+# Sincronizacao Automatica (Cron) - sync-acessorias
 
-# Correção do Travamento na Pagina de Clientes
+## Resumo
 
-## Problema Identificado
+Criar uma nova Edge Function `sync-acessorias-cron` que sera disparada automaticamente via `pg_cron` as 06h e 18h (horario de Brasilia, GMT-3), equivalente a `0 9,21 * * *` em UTC. Essa funcao orquestra a sincronizacao para ambos os tenants (contmax e pg), reutilizando a logica existente da `runSync` diretamente (sem depender de autenticacao de usuario).
 
-A pagina `/clientes/pg` travou por dois motivos:
+## Etapas
 
-1. **Jobs orfaos**: 2 sincronizacoes ficaram presas com status "running" sem nunca finalizar, ocupando recursos de polling
-2. **Carga excessiva**: 519 empresas P&G sao carregadas de uma vez, cada uma com JSONs pesados (12 meses + obrigacoes + socios), gerando processamento intensivo no navegador
+### 1. Habilitar extensoes pg_cron e pg_net
 
-## Plano de Correcao
+Criar migracao SQL para garantir que as extensoes necessarias estejam ativas:
 
-### 1. Limpar jobs orfaos no banco de dados
-- Executar UPDATE nos 2 jobs presos (IDs: `92ada077-5df5-494a-9e0e-cb2e1722fab5` e `d33b82d1-58c1-4d71-bf2c-e97fb5e0d150`) marcando-os como `timeout`
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net;
+```
 
-### 2. Otimizar carregamento de empresas (useEmpresas.ts)
-- Na query de listagem para a pagina Clientes, selecionar apenas as colunas necessarias para a tabela (`id, numero, nome, cnpj, regime_tributario, emite_nota_fiscal, data_abertura, data_baixa, whatsapp, socios`) em vez de `SELECT *` que traz `meses`, `obrigacoes`, `raw_payload` (campos JSON pesados)
-- Carregar os dados completos apenas quando o usuario clicar em uma empresa especifica (Sheet de detalhes)
+### 2. Criar Edge Function `sync-acessorias-cron`
 
-### 3. Adicionar paginacao na tabela de clientes (Clientes.tsx)
-- Implementar paginacao simples com 50 empresas por pagina
-- Adicionar controles de navegacao (anterior/proximo) no rodape da tabela
-- Manter filtro e busca funcionando sobre os dados ja carregados
+Arquivo: `supabase/functions/sync-acessorias-cron/index.ts`
 
-## Detalhes Tecnicos
+A funcao:
+- Usa `SUPABASE_SERVICE_ROLE_KEY` para autenticar (sem depender de usuario/frontend)
+- Para cada tenant (`contmax`, `pg`):
+  - Busca o `organizacao_id` pela slug
+  - Verifica lock: consulta `sync_jobs` se ha job com `status = 'running'` para aquele tenant. Se houver, pula e loga
+  - Busca o token da API (`ACESSORIAS_TOKEN_CONTMAX` / `ACESSORIAS_TOKEN_PG`)
+  - Busca `base_url` de `tenant_integrations` (ou usa default)
+  - Verifica se integracao esta habilitada
+  - Cria registro em `sync_jobs` com `created_by_user_id = NULL` (cron)
+  - Executa `runSync` (mesma logica extraida/copiada do sync-acessorias original)
+- Loga inicio/fim e job_id de cada disparo
 
-### Mudancas nos arquivos:
+### 3. Configurar config.toml
 
-**`src/hooks/useEmpresas.ts`**
-- Alterar `select("*")` para `select("id, numero, nome, cnpj, regime_tributario, emite_nota_fiscal, data_abertura, data_baixa, data_cadastro, whatsapp, socios, organizacao_id")`
-- Remover processamento de `meses` e `obrigacoes` na funcao `rowToEmpresa` quando esses campos nao estiverem presentes (usar defaults apenas quando necessario)
+Adicionar entrada para a nova funcao:
 
-**`src/pages/Clientes.tsx`**
-- Adicionar estado de paginacao (`page`, `pageSize = 50`)
-- Fatiar o array `filtered` para exibir apenas a pagina atual
-- Adicionar controles de paginacao no rodape da tabela
+```toml
+[functions.sync-acessorias-cron]
+verify_jwt = false
+```
 
-**Migracao SQL**
-- UPDATE nos 2 jobs orfaos para status `timeout`
+Nota: o arquivo config.toml e gerenciado automaticamente, mas a entrada sera necessaria.
+
+### 4. Registrar cron job via SQL (insert tool, nao migracao)
+
+Usar `pg_cron` + `pg_net` para chamar a Edge Function no schedule:
+
+```sql
+SELECT cron.schedule(
+  'sync-acessorias-cron',
+  '0 9,21 * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://dpgfvvxxaoikdbfrqhwp.supabase.co/functions/v1/sync-acessorias-cron',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer <ANON_KEY>"}'::jsonb,
+    body := '{"source": "cron"}'::jsonb
+  ) AS request_id;
+  $$
+);
+```
+
+### 5. Alterar tabela sync_jobs
+
+A coluna `created_by_user_id` ja e nullable, entao nenhuma migracao adicional e necessaria. Jobs criados pelo cron terao esse campo como NULL.
+
+---
+
+## Detalhes tecnicos
+
+### Arquivos alterados/criados
+
+| Arquivo | Acao |
+|---|---|
+| `supabase/functions/sync-acessorias-cron/index.ts` | Criar (nova funcao) |
+| `supabase/config.toml` | Atualizado automaticamente |
+
+### Migracao SQL
+
+- Habilitar `pg_cron` e `pg_net`
+
+### Insert SQL (nao migracao)
+
+- Registrar o cron schedule com `cron.schedule()`
+
+### Logica de lock
+
+```text
+SELECT count(*) FROM sync_jobs
+WHERE tenant_id = <id> AND status = 'running'
+```
+
+Se count > 0, pula aquele tenant e loga "Skipped: job already running".
+
+### Fluxo da Edge Function cron
+
+```text
+POST /functions/v1/sync-acessorias-cron
+  |
+  +-- Para cada tenant [contmax, pg]:
+       |
+       +-- Buscar organizacao_id
+       +-- Verificar lock (job running?)
+       +-- Se locked: logar skip, continuar
+       +-- Buscar API token e base_url
+       +-- Criar sync_job (created_by_user_id = NULL)
+       +-- Executar runSync via EdgeRuntime.waitUntil
+       +-- Logar job_id
+  |
+  +-- Retornar resumo { contmax: job_id|skipped, pg: job_id|skipped }
+```
+
+### Schedule
+
+- Cron expression: `0 9,21 * * *` (UTC)
+- Equivale a 06:00 e 18:00 horario de Brasilia (GMT-3)
