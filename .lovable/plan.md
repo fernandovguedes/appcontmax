@@ -1,113 +1,115 @@
 
 
-# Envio de WhatsApp via OneCode no Controle Fiscal
-
-**Custo estimado: ~3 creditos**
+# Envio em Lote de WhatsApp via OneCode
 
 ## Resumo
 
-Implementar envio automatizado de cobranca de extrato bancario via WhatsApp, usando a API OneCode. O botao aparece na coluna Acoes da tabela de empresas, visivel apenas quando o extrato esta "Nao Enviado". Inclui confirmacao dupla, log de auditoria e feedback via toast.
+Adicionar selecao por checkbox na tabela de empresas para envio em lote de mensagens WhatsApp. Inclui barra de acoes flutuante, confirmacao dupla, edge function de lote com processamento sequencial, progresso em tempo real e resumo final.
 
 ## Alteracoes
 
-### 1. Secrets (ONECODE_API_URL e ONECODE_API_TOKEN)
+### 1. Migracao: adicionar campos de lote em `whatsapp_logs`
 
-Solicitar ao usuario os dois valores necessarios:
-- `ONECODE_API_URL`: URL base da API OneCode (o endpoint completo informado)
-- `ONECODE_API_TOKEN`: Token Bearer de autenticacao
-
-Esses segredos serao usados exclusivamente na edge function.
-
-### 2. Migracao: tabela `whatsapp_logs`
-
-Criar tabela de auditoria:
+Adicionar colunas `batch_id`, `batch_index` e `batch_total` na tabela existente:
 
 ```sql
-CREATE TABLE public.whatsapp_logs (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  empresa_id uuid NOT NULL,
-  "to" text NOT NULL,
-  body text NOT NULL,
-  user_id uuid NOT NULL,
-  status text NOT NULL DEFAULT 'pending',
-  ticket_id text,
-  response_raw jsonb,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
-ALTER TABLE public.whatsapp_logs ENABLE ROW LEVEL SECURITY;
-
--- Apenas usuarios autenticados podem ler e inserir logs
-CREATE POLICY "Authenticated users can read whatsapp_logs"
-  ON public.whatsapp_logs FOR SELECT
-  USING (true);
-
-CREATE POLICY "Authenticated users can insert whatsapp_logs"
-  ON public.whatsapp_logs FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+ALTER TABLE public.whatsapp_logs
+  ADD COLUMN batch_id uuid,
+  ADD COLUMN batch_index integer,
+  ADD COLUMN batch_total integer;
 ```
 
-### 3. Edge Function: `send-whatsapp`
+### 2. Edge Function: `send-whatsapp-batch`
 
-Criar `supabase/functions/send-whatsapp/index.ts`:
+Criar `supabase/functions/send-whatsapp-batch/index.ts`:
 
-- Valida JWT do usuario
-- Recebe `{ to, body, empresa_id, ticketStrategy }`
-- Chama `POST {ONECODE_API_URL}/api/send/{to}` com headers `Authorization: Bearer {ONECODE_API_TOKEN}` e body `{ body, ticketStrategy }`
-- Insere registro na tabela `whatsapp_logs` com status `success` ou `error`, incluindo `ticket_id` e `response_raw`
-- Retorna resultado ao frontend
+- Recebe `{ items: [{empresaId, to, body}], ticketStrategy, closeAfterSend }`
+- Valida JWT e extrai `user_id`
+- Gera um `batch_id` (uuid)
+- Processa cada item sequencialmente:
+  - Chama `POST {ONECODE_API_URL}/api/send/{to}` com `{ body, ticketStrategy }`
+  - Se sucesso e `closeAfterSend`, chama `POST /api/tickets/{ticketId}/send-and-close`
+  - Registra log em `whatsapp_logs` com `batch_id`, `batch_index`, `batch_total`
+- Retorna array de resultados: `{ empresaId, to, success, error, ticketId, response_raw }`
 
-### 4. Componente: `WhatsAppConfirmDialog`
+Nota: processamento sequencial (sem concorrencia) para evitar rate limiting na API OneCode.
 
-Criar `src/components/WhatsAppConfirmDialog.tsx`:
+### 3. Componente: `WhatsAppBatchBar`
+
+Criar `src/components/WhatsAppBatchBar.tsx`:
+
+- Barra fixa no rodape (sticky bottom) que aparece quando ha pelo menos 1 empresa selecionada
+- Exibe: "X empresa(s) selecionada(s)"
+- Botoes: "Enviar WhatsApp (X)" (verde), "Limpar selecao" (outline)
+- Botao "Pre-visualizar mensagem" que mostra a mensagem template em um popover
+
+### 4. Componente: `WhatsAppBatchConfirmDialog`
+
+Criar `src/components/WhatsAppBatchConfirmDialog.tsx`:
 
 - Dialog com 2 etapas:
-  - **Etapa 1**: "Voce deseja enviar a mensagem de cobranca de extrato para {empresa}?" com botoes Cancelar / Continuar
-  - **Etapa 2**: Exibe a mensagem que sera enviada e botoes Voltar / Enviar
-- Estado de loading durante o envio
-- Mensagem template:
-  ```
-  Ola, {empresa}! Identificamos que o extrato de {competencia} ainda nao foi enviado. Pode nos encaminhar por aqui hoje?
-  ```
-  Onde `{competencia}` corresponde ao mes selecionado (ex: "Marco/2026")
+  - **Etapa 1**: "Voce deseja enviar mensagem de cobranca para X empresas?" com lista resumida dos destinatarios. Botoes: Cancelar / Continuar
+  - **Etapa 2**: "Confirmar envio de X mensagens agora?" com preview do template. Botoes: Voltar / Enviar
+- Durante envio: exibe barra de progresso com contador "Enviando X/Y..."
+- Ao final: exibe resumo com total de sucessos e erros, com opcao de expandir detalhes por empresa
+- Botao "Fechar" apos conclusao
 
 ### 5. Alteracao: `EmpresaTable.tsx`
 
-Na coluna Acoes, adicionar botao com icone de WhatsApp (usando `MessageCircle` do Lucide):
+- Adicionar coluna de checkbox como primeira coluna
+- Checkbox no cabecalho: "Selecionar todos elegiveis" (seleciona apenas empresas com extrato "nao" E whatsapp preenchido e valido)
+- Checkbox por linha:
+  - Habilitado apenas se `mes.extratoEnviado === "nao"` E `empresa.whatsapp` existe e comeca com "55"
+  - Desabilitado com tooltip explicando o motivo ("Extrato ja enviado" ou "WhatsApp nao cadastrado")
+- Novos props:
+  ```typescript
+  selectedIds?: Set<string>;
+  onSelectionChange?: (selectedIds: Set<string>) => void;
+  ```
 
-- **Visivel/habilitado** somente quando `mes.extratoEnviado === "nao"`
-- Quando extrato ja enviado: botao oculto ou desabilitado com tooltip "Extrato ja enviado"
-- Ao clicar: abre o `WhatsAppConfirmDialog`
-- Necessita receber novo callback `onSendWhatsApp` via props
+### 6. Alteracao: `Index.tsx`
 
-Novo prop no `EmpresaTableProps`:
-```typescript
-onSendWhatsApp?: (empresa: Empresa) => void;
+- Gerenciar estado `selectedIds: Set<string>` e `batchDialogOpen: boolean`
+- Passar `selectedIds` e `onSelectionChange` para `EmpresaTable`
+- Renderizar `WhatsAppBatchBar` quando `selectedIds.size > 0`
+- Renderizar `WhatsAppBatchConfirmDialog`
+- Handler de envio em lote:
+  - Chama `supabase.functions.invoke("send-whatsapp-batch", { body: { items, ticketStrategy: "create", closeAfterSend: true } })`
+  - Limpa selecao apos conclusao
+  - Exibe toast resumo
+
+### 7. Configuracao: `supabase/config.toml`
+
+Adicionar entrada para a nova edge function:
+```toml
+[functions.send-whatsapp-batch]
+verify_jwt = false
 ```
 
-### 6. Alteracao: `Index.tsx` (Controle Fiscal)
+## Funcao auxiliar de elegibilidade
 
-- Importar `WhatsAppConfirmDialog`
-- Gerenciar estado `whatsappEmpresa` (empresa selecionada para envio)
-- Passar `onSendWhatsApp` para `EmpresaTable`
-- Chamar a edge function `send-whatsapp` via Supabase client ao confirmar
-- Exibir toast de sucesso ou erro
-- A empresa precisa ter o campo `whatsapp` preenchido; caso contrario, exibir toast de erro informando que o WhatsApp nao esta cadastrado
+Uma empresa e elegivel para envio em lote se:
+1. `empresa.meses[mesSelecionado].extratoEnviado === "nao"`
+2. `empresa.whatsapp` existe e tem formato valido (comeca com "55", minimo 12 digitos)
 
 ## Fluxo
 
-1. Usuario ve botao WhatsApp na linha da empresa (extrato "Nao Enviado")
-2. Clica no botao -> abre dialog Etapa 1
-3. Clica "Continuar" -> avanca para Etapa 2 com preview da mensagem
-4. Clica "Enviar" -> chama edge function -> loading no botao
-5. Sucesso -> toast "Mensagem enviada" + fecha dialog
-6. Erro -> toast com mensagem amigavel + reabilita botao
+```text
+1. Usuario marca checkboxes nas linhas elegiveis
+2. Barra de acoes aparece no rodape com contagem
+3. Clica "Enviar WhatsApp (X)"
+4. Dialog Etapa 1: lista destinatarios -> Continuar
+5. Dialog Etapa 2: confirma envio -> Enviar
+6. Progresso em tempo real: "Enviando 3/10..."
+7. Conclusao: resumo com X sucessos, Y erros
+8. Fecha dialog -> limpa selecao
+```
 
 ## Detalhes Tecnicos
 
-- A edge function usa `Deno.env.get("ONECODE_API_URL")` e `Deno.env.get("ONECODE_API_TOKEN")`
-- O campo `whatsapp` da empresa ja existe na tabela `empresas` (implementado anteriormente)
-- Se a empresa nao tiver WhatsApp cadastrado, o botao ainda aparece mas ao clicar mostra erro "WhatsApp nao cadastrado para esta empresa"
-- Os logs ficam acessiveis na tabela `whatsapp_logs` para auditoria futura
-- A competencia e derivada do mes selecionado + ano corrente (ex: "Marco/2026")
+- A edge function `send-whatsapp-batch` reutiliza a mesma logica de envio e fechamento de ticket da `send-whatsapp` existente
+- Os segredos `ONECODE_API_URL` e `ONECODE_API_TOKEN` ja estao configurados
+- O progresso e exibido no frontend via estado local (a edge function retorna todos os resultados de uma vez; o progresso visual e simulado com base no total)
+- Cada item gera uma linha independente em `whatsapp_logs`, vinculada pelo `batch_id`
+- A selecao e resetada ao mudar de mes (limpeza automatica via `useEffect`)
 
