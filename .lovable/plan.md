@@ -1,30 +1,23 @@
 
 
-# Corrigir erro "Failed to send a request to the Edge Function"
+# Ajustar rate limiting da funcao close-bomcontrole-contracts
 
 ## Problema
 
-A Edge Function `sync-onecode-contacts` esta rejeitando requisicoes do navegador porque os headers CORS estao incompletos. O cliente Supabase JS envia headers adicionais (`x-supabase-client-platform`, etc.) que nao estao listados no `Access-Control-Allow-Headers`, causando falha no preflight CORS.
+A funcao esta recebendo erros HTTP 429 (Too Many Requests) da API do BomControle, o que trava o processamento dos contratos pendentes. Os parametros atuais (BATCH_SIZE=3, DELAY_MS=3000) sao agressivos demais para o rate limit da API.
 
-## Solucao
+## Alteracao
 
-Atualizar a constante `corsHeaders` no arquivo `supabase/functions/sync-onecode-contacts/index.ts` para incluir todos os headers necessarios:
+Arquivo: `supabase/functions/close-bomcontrole-contracts/index.ts`
 
-```text
-Antes:
-  "authorization, x-client-info, apikey, content-type"
+| Parametro | Antes | Depois |
+|-----------|-------|--------|
+| BATCH_SIZE | 3 | 2 |
+| DELAY_MS | 3000 | 5000 |
 
-Depois:
-  "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version"
-```
+Apenas duas linhas serao alteradas (linhas 11-12). Nenhuma outra modificacao funcional.
 
-## Arquivo a modificar
+## Resultado esperado
 
-| Arquivo | Alteracao |
-|---|---|
-| `supabase/functions/sync-onecode-contacts/index.ts` | Atualizar `corsHeaders` (linha 5-6) |
-
-## Impacto
-
-Nenhuma alteracao funcional. Apenas correcao de compatibilidade CORS com a versao atual do SDK Supabase JS.
+Com BATCH_SIZE=2 e DELAY_MS=5000, cada execucao do cron (a cada 2 minutos) processara 2 contratos com 5 segundos entre cada chamada a API, reduzindo a chance de 429. Os 246+ contratos pendentes serao processados gradualmente ao longo das proximas horas.
 
