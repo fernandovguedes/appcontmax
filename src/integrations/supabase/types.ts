@@ -292,6 +292,42 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_logs: {
+        Row: {
+          body: string
+          created_at: string
+          empresa_id: string
+          id: string
+          response_raw: Json | null
+          status: string
+          ticket_id: string | null
+          to: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          empresa_id: string
+          id?: string
+          response_raw?: Json | null
+          status?: string
+          ticket_id?: string | null
+          to: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          empresa_id?: string
+          id?: string
+          response_raw?: Json | null
+          status?: string
+          ticket_id?: string | null
+          to?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
