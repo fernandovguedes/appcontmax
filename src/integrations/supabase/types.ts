@@ -218,6 +218,7 @@ export type Database = {
           from_me: boolean
           id: string
           onecode_message_id: string
+          organizacao_id: string
           payload_json: Json | null
           ticket_id: string
           user_id: string | null
@@ -232,6 +233,7 @@ export type Database = {
           from_me: boolean
           id?: string
           onecode_message_id: string
+          organizacao_id: string
           payload_json?: Json | null
           ticket_id: string
           user_id?: string | null
@@ -246,13 +248,22 @@ export type Database = {
           from_me?: boolean
           id?: string
           onecode_message_id?: string
+          organizacao_id?: string
           payload_json?: Json | null
           ticket_id?: string
           user_id?: string | null
           user_name?: string | null
           whatsapp_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "onecode_messages_raw_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       onecode_ticket_scores: {
         Row: {
@@ -264,6 +275,7 @@ export type Database = {
           id: string
           model_used: string | null
           objetividade: number | null
+          organizacao_id: string
           resolucao: number | null
           score_final: number | null
           scored_at: string
@@ -280,6 +292,7 @@ export type Database = {
           id?: string
           model_used?: string | null
           objetividade?: number | null
+          organizacao_id: string
           resolucao?: number | null
           score_final?: number | null
           scored_at?: string
@@ -296,6 +309,7 @@ export type Database = {
           id?: string
           model_used?: string | null
           objetividade?: number | null
+          organizacao_id?: string
           resolucao?: number | null
           score_final?: number | null
           scored_at?: string
@@ -303,7 +317,15 @@ export type Database = {
           user_id?: string | null
           user_name?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "onecode_ticket_scores_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       organizacoes: {
         Row: {
