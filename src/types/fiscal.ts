@@ -135,6 +135,7 @@ export interface Empresa {
   meses: MesesData;
   obrigacoes: ObrigacoesData;
   dataBaixa?: string;
+  whatsapp?: string;
 }
 
 const MES_TO_INDEX: Record<MesKey, number> = {

@@ -31,6 +31,7 @@ export type Database = {
           regime_tributario: string
           socios: Json
           updated_at: string
+          whatsapp: string | null
         }
         Insert: {
           cnpj: string
@@ -48,6 +49,7 @@ export type Database = {
           regime_tributario?: string
           socios?: Json
           updated_at?: string
+          whatsapp?: string | null
         }
         Update: {
           cnpj?: string
@@ -65,6 +67,7 @@ export type Database = {
           regime_tributario?: string
           socios?: Json
           updated_at?: string
+          whatsapp?: string | null
         }
         Relationships: [
           {

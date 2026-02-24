@@ -59,6 +59,7 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
   const [emiteNotaFiscal, setEmiteNotaFiscal] = useState(empresa?.emiteNotaFiscal ?? true);
   const [regimeTributario, setRegimeTributario] = useState<RegimeTributario>(empresa?.regimeTributario ?? "simples_nacional");
   const [socios, setSocios] = useState<Socio[]>(empresa?.socios ?? [{ nome: "", percentual: 100, cpf: "" }]);
+  const [whatsapp, setWhatsapp] = useState(empresa?.whatsapp ?? "");
   const [meses] = useState<MesesData>(empresa?.meses ?? createEmptyMeses());
 
   const handleSave = () => {
@@ -69,6 +70,7 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
       inicioCompetencia,
       regimeTributario,
       emiteNotaFiscal,
+      whatsapp,
       socios,
       meses,
       obrigacoes: empresa?.obrigacoes ?? createEmptyObrigacoes(),
@@ -105,6 +107,11 @@ export function EmpresaFormDialog({ open, onOpenChange, empresa, onSave, onUpdat
             <div className="space-y-2">
               <Label>Início da Competência</Label>
               <Input type="date" value={inicioCompetencia} onChange={(e) => setInicioCompetencia(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>WhatsApp</Label>
+              <Input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="5511999999999" />
+              <p className="text-xs text-muted-foreground">Formato: 55 + DDD + Número (sem espaços)</p>
             </div>
             <div className="flex items-center gap-3 pt-6">
               <Switch checked={emiteNotaFiscal} onCheckedChange={setEmiteNotaFiscal} id="emite-nf" />
