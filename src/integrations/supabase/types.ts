@@ -294,6 +294,9 @@ export type Database = {
       }
       whatsapp_logs: {
         Row: {
+          batch_id: string | null
+          batch_index: number | null
+          batch_total: number | null
           body: string
           created_at: string
           empresa_id: string
@@ -305,6 +308,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          batch_id?: string | null
+          batch_index?: number | null
+          batch_total?: number | null
           body: string
           created_at?: string
           empresa_id: string
@@ -316,6 +322,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          batch_id?: string | null
+          batch_index?: number | null
+          batch_total?: number | null
           body?: string
           created_at?: string
           empresa_id?: string

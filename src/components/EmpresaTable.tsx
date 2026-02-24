@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useCallback, useMemo } from "react";
 import { Empresa, MesKey, StatusEntrega, StatusExtrato, StatusQuestor, calcularDistribuicaoSocios, isMesFechamentoTrimestre, MESES_FECHAMENTO_TRIMESTRE, getMesesTrimestre, isMesDctfPosFechamento, getTrimestreFechamentoAnterior, calcularFaturamentoTrimestre } from "@/types/fiscal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge, ExtratoBadge, QuestorBadge } from "@/components/StatusBadge";
@@ -10,8 +10,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Pencil, Trash2, FileText, FileX, DollarSign, Archive, RotateCcw, MessageCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 import { CustomFixedScrollbar } from "@/components/CustomFixedScrollbar";
+
+function isElegivel(empresa: Empresa, mes: MesKey): boolean {
+  const dados = empresa.meses[mes];
+  return dados.extratoEnviado === "nao" && !!empresa.whatsapp && empresa.whatsapp.startsWith("55") && empresa.whatsapp.length >= 12;
+}
+
+function getMotivoBloqueio(empresa: Empresa, mes: MesKey): string | null {
+  const dados = empresa.meses[mes];
+  if (dados.extratoEnviado !== "nao") return "Extrato já enviado";
+  if (!empresa.whatsapp || !empresa.whatsapp.startsWith("55") || empresa.whatsapp.length < 12) return "WhatsApp não cadastrado";
+  return null;
+}
 
 interface EmpresaTableProps {
   empresas: Empresa[];
@@ -26,6 +39,8 @@ interface EmpresaTableProps {
   onExtratoChange: (empresaId: string, mes: MesKey, valor: StatusExtrato) => void;
   onMesFieldChange: (empresaId: string, mes: MesKey, campo: string, valor: any) => void;
   onSendWhatsApp?: (empresa: Empresa) => void;
+  selectedIds?: Set<string>;
+  onSelectionChange?: (selectedIds: Set<string>) => void;
 }
 
 const LIMITE_DISTRIBUICAO_SOCIO = 50000;
@@ -43,14 +58,36 @@ function calcularDistribuicaoTrimestral(empresa: Empresa, mesFechamento: MesKey)
   return totalFaturamento * 0.75;
 }
 
-export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit, onFaturamento, onDelete, onBaixar, onReativar, onStatusChange, onExtratoChange, onMesFieldChange, onSendWhatsApp }: EmpresaTableProps) {
+export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit, onFaturamento, onDelete, onBaixar, onReativar, onStatusChange, onExtratoChange, onMesFieldChange, onSendWhatsApp, selectedIds, onSelectionChange }: EmpresaTableProps) {
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
   const mesTrimestre = getMesFechamentoTrimestre(mesSelecionado);
   const isDctfPos = isMesDctfPosFechamento(mesSelecionado);
   const trimestreAnterior = getTrimestreFechamentoAnterior(mesSelecionado);
-  const colCount = 9 + (isFechamento ? 5 : 0) + (isDctfPos ? 1 : 0);
+  const colCount = 10 + (isFechamento ? 5 : 0) + (isDctfPos ? 1 : 0);
 
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const elegiveis = useMemo(() => empresas.filter((e) => isElegivel(e, mesSelecionado)), [empresas, mesSelecionado]);
+
+  const allElegiveisSelected = elegiveis.length > 0 && selectedIds ? elegiveis.every((e) => selectedIds.has(e.id)) : false;
+  const someSelected = selectedIds ? elegiveis.some((e) => selectedIds.has(e.id)) : false;
+
+  const handleSelectAll = useCallback(() => {
+    if (!onSelectionChange) return;
+    if (allElegiveisSelected) {
+      onSelectionChange(new Set());
+    } else {
+      onSelectionChange(new Set(elegiveis.map((e) => e.id)));
+    }
+  }, [allElegiveisSelected, elegiveis, onSelectionChange]);
+
+  const handleSelectOne = useCallback((id: string, checked: boolean) => {
+    if (!onSelectionChange || !selectedIds) return;
+    const next = new Set(selectedIds);
+    if (checked) next.add(id);
+    else next.delete(id);
+    onSelectionChange(next);
+  }, [onSelectionChange, selectedIds]);
 
   return (
     <div className="max-h-[calc(100vh-220px)] overflow-y-auto overflow-x-hidden rounded-xl border shadow-sm table-zebra bg-muted text-primary-foreground">
@@ -58,6 +95,16 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
         <Table className="min-w-max">
           <TableHeader>
             <TableRow className="header-gradient text-primary-foreground hover:bg-transparent [&>th]:text-primary-foreground/90 [&>th]:font-semibold">
+              {onSelectionChange && (
+                <TableHead className="w-10 text-center">
+                  <Checkbox
+                    checked={allElegiveisSelected}
+                    onCheckedChange={handleSelectAll}
+                    aria-label="Selecionar todos elegíveis"
+                    className="border-primary-foreground/50 data-[state=checked]:bg-primary-foreground data-[state=checked]:text-primary"
+                  />
+                </TableHead>
+              )}
               <TableHead className="w-12">Nº</TableHead>
               <TableHead>Empresa</TableHead>
               <TableHead className="w-20 text-center">Regime</TableHead>
@@ -103,6 +150,31 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
 
               return (
                 <TableRow key={empresa.id} className={temAlerta || temAlertaTrimestral ? "bg-destructive/5" : ""}>
+                  {onSelectionChange && (() => {
+                    const elegivel = isElegivel(empresa, mesSelecionado);
+                    const motivo = getMotivoBloqueio(empresa, mesSelecionado);
+                    return (
+                      <TableCell className="text-center">
+                        {elegivel ? (
+                          <Checkbox
+                            checked={selectedIds?.has(empresa.id) ?? false}
+                            onCheckedChange={(v) => handleSelectOne(empresa.id, !!v)}
+                          />
+                        ) : (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex">
+                                  <Checkbox disabled className="opacity-30" />
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>{motivo}</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </TableCell>
+                    );
+                  })()}
                   <TableCell className="font-medium">{empresa.numero}</TableCell>
                   <TableCell className="font-medium max-w-[180px] truncate">
                     <div className="flex items-center gap-2">

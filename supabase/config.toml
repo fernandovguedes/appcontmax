@@ -2,3 +2,6 @@ project_id = "dpgfvvxxaoikdbfrqhwp"
 
 [functions.send-whatsapp]
 verify_jwt = false
+
+[functions.send-whatsapp-batch]
+verify_jwt = false
