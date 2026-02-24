@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.sync-acessorias]
 verify_jwt = false
+
+[functions.onecode-webhook]
+verify_jwt = false
+
+[functions.onecode-score-ticket]
+verify_jwt = false
