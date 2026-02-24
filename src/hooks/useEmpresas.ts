@@ -39,6 +39,10 @@ function rowToEmpresa(row: any): Empresa {
   const rawMeses = row.meses ?? {};
   const rawObrigacoes = row.obrigacoes ?? {};
 
+  // When loaded with light columns, meses/obrigacoes won't be present
+  const hasMeses = row.meses !== undefined;
+  const hasObrigacoes = row.obrigacoes !== undefined;
+
   return {
     id: row.id,
     numero: row.numero,
@@ -51,7 +55,7 @@ function rowToEmpresa(row: any): Empresa {
     socios: row.socios ?? [],
     dataBaixa: row.data_baixa ?? undefined,
     whatsapp: row.whatsapp ?? "",
-    meses: {
+    meses: hasMeses ? {
       janeiro: { ...defaultMeses.janeiro, ...rawMeses.janeiro },
       fevereiro: { ...defaultMeses.fevereiro, ...rawMeses.fevereiro },
       marco: { ...defaultMeses.marco, ...rawMeses.marco },
@@ -64,13 +68,13 @@ function rowToEmpresa(row: any): Empresa {
       outubro: { ...defaultMeses.outubro, ...rawMeses.outubro },
       novembro: { ...defaultMeses.novembro, ...rawMeses.novembro },
       dezembro: { ...defaultMeses.dezembro, ...rawMeses.dezembro },
-    },
-    obrigacoes: {
+    } : defaultMeses,
+    obrigacoes: hasObrigacoes ? {
       marco: { ...defaultObrigacoes.marco, ...rawObrigacoes.marco },
       junho: { ...defaultObrigacoes.junho, ...rawObrigacoes.junho },
       setembro: { ...defaultObrigacoes.setembro, ...rawObrigacoes.setembro },
       dezembro: { ...defaultObrigacoes.dezembro, ...rawObrigacoes.dezembro },
-    },
+    } : defaultObrigacoes,
   };
 }
 
@@ -140,9 +144,10 @@ export function useEmpresas(organizacaoId?: string) {
       return;
     }
 
+    const LIGHT_COLUMNS = "id, numero, nome, cnpj, regime_tributario, emite_nota_fiscal, data_abertura, data_baixa, data_cadastro, whatsapp, socios, organizacao_id";
     const { data, error } = await supabase
       .from("empresas")
-      .select("*")
+      .select(LIGHT_COLUMNS)
       .eq("organizacao_id", organizacaoId)
       .order("nome", { ascending: true });
     if (error) {
@@ -156,7 +161,7 @@ export function useEmpresas(organizacaoId?: string) {
       if (seeded) {
         const { data: seededData } = await supabase
           .from("empresas")
-          .select("*")
+          .select(LIGHT_COLUMNS)
           .eq("organizacao_id", organizacaoId)
           .order("nome", { ascending: true });
         setEmpresas((seededData ?? []).map(rowToEmpresa));
