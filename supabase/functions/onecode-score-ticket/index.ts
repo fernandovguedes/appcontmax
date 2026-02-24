@@ -147,7 +147,9 @@ Profissionalismo 15%
 Cordialidade 10%
 
 Retorne APENAS JSON válido no formato especificado.
-Não inclua comentários fora do JSON.`;
+Não inclua comentários fora do JSON.
+
+Ignore quando for atendimento do Atendente, não de notas, não classifique`;
 
     const aiT0 = Date.now();
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
