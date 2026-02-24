@@ -18,24 +18,33 @@ export type Database = {
         Row: {
           active: boolean
           bc_contract_id: number
+          closed_at: string | null
+          closed_competencia: string | null
           created_at: string
           id: string
+          legacy: boolean
           portal_company_id: string
           tenant_id: string
         }
         Insert: {
           active?: boolean
           bc_contract_id: number
+          closed_at?: string | null
+          closed_competencia?: string | null
           created_at?: string
           id?: string
+          legacy?: boolean
           portal_company_id: string
           tenant_id: string
         }
         Update: {
           active?: boolean
           bc_contract_id?: number
+          closed_at?: string | null
+          closed_competencia?: string | null
           created_at?: string
           id?: string
+          legacy?: boolean
           portal_company_id?: string
           tenant_id?: string
         }
