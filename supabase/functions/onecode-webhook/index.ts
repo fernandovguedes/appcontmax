@@ -4,10 +4,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-onecode-hook-secret, x-onecode-source, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "authorization, x-client-info, apikey, content-type, x-onecode-secret, x-onecode-source, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Source → secret env var name + organizacao_id mapping
 const SOURCE_CONFIG: Record<string, { secretEnv: string; organizacaoId: string }> = {
   contmax: {
     secretEnv: "ONECODE_WEBHOOK_SECRET",
@@ -27,44 +26,58 @@ function jsonResp(body: Record<string, unknown>, status = 200) {
 }
 
 serve(async (req) => {
+  console.log("Webhook recebido");
+  console.log("Method:", req.method);
+  console.log("Headers:", JSON.stringify(Object.fromEntries(req.headers.entries())));
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   if (req.method !== "POST") {
+    console.error("Method not allowed:", req.method);
     return jsonResp({ error: "Method not allowed" }, 405);
   }
 
-  // Init supabase with service role (bypasses RLS)
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
-
-  let payload: any;
-  let source = "unknown";
-  let eventId: string | undefined;
-
   try {
-    // Determine source
-    source = (req.headers.get("x-onecode-source") || "contmax").toLowerCase();
-    const config = SOURCE_CONFIG[source];
+    // Init supabase with service role (bypasses RLS)
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    console.log("SUPABASE_URL presente:", !!supabaseUrl);
+    console.log("SUPABASE_SERVICE_ROLE_KEY presente:", !!supabaseKey);
 
+    const supabase = createClient(supabaseUrl!, supabaseKey!);
+
+    // Determine source
+    const source = (req.headers.get("x-onecode-source") || "contmax").toLowerCase();
+    const secret = req.headers.get("x-onecode-secret");
+    console.log("Source recebido:", source);
+    console.log("Secret recebido:", secret);
+
+    const config = SOURCE_CONFIG[source];
     if (!config) {
+      console.error("Unknown source:", source);
       return jsonResp({ error: `Unknown source: ${source}` }, 400);
     }
 
     // Validate webhook secret
-    const secret = req.headers.get("x-onecode-hook-secret");
     const expectedSecret = Deno.env.get(config.secretEnv);
+    console.log("Expected secret env var:", config.secretEnv);
+    console.log("Expected secret presente:", !!expectedSecret);
+    console.log("Secrets match:", secret === expectedSecret);
 
     if (!expectedSecret || secret !== expectedSecret) {
-      return jsonResp({ error: "Unauthorized" }, 401);
+      console.error("Secret inválido");
+      return jsonResp({ error: "unauthorized" }, 401);
     }
 
-    payload = await req.json();
+    console.log("Secret validado com sucesso");
 
-    // Extract event info for audit
+    // Parse body
+    const payload = await req.json();
+    console.log("Payload recebido:", JSON.stringify(payload));
+
+    // Extract event info
     const event = payload.event ?? payload.type ?? null;
     const message = payload.data ?? payload.message ?? payload;
     const ticket = message.ticket ?? payload.ticket ?? {};
@@ -72,7 +85,6 @@ serve(async (req) => {
     const ticketIdRaw = message.ticketId ?? ticket.id ?? null;
     const ticketIdNum = ticketIdRaw ? Number(ticketIdRaw) : null;
 
-    // Parse object/action from event string (e.g. "messages.create" → object="messages", action="create")
     let onecodeObject: string | null = null;
     let onecodeAction: string | null = null;
     if (event && typeof event === "string") {
@@ -81,7 +93,11 @@ serve(async (req) => {
       onecodeAction = parts[1] ?? null;
     }
 
-    // 1) Always persist raw event first (idempotent via upsert on message_id when available)
+    console.log("Event:", event, "Object:", onecodeObject, "Action:", onecodeAction);
+    console.log("MessageId:", messageId, "TicketId:", ticketIdNum);
+
+    // 1) Persist raw event
+    console.log("Iniciando persistência no banco - onecode_webhook_events");
     const eventRow = {
       source,
       onecode_object: onecodeObject,
@@ -100,18 +116,19 @@ serve(async (req) => {
       .single();
 
     if (eventError) {
-      console.error("Failed to insert webhook event:", eventError);
-      // Still return 200 to avoid webhook retries, but log the issue
+      console.error("Failed to insert webhook event:", JSON.stringify(eventError));
       return jsonResp({ ok: true, warning: "event_log_failed", detail: eventError.message });
     }
 
-    eventId = insertedEvent.id;
+    const eventId = insertedEvent.id;
+    console.log("Evento salvo com id:", eventId);
 
-    // 2) Return 200 immediately — process the rest in the background
+    // 2) Process in background
     const processPromise = (async () => {
       try {
         // Only process messages.create events
         if (event && event !== "messages.create") {
+          console.log("Evento ignorado (não é messages.create):", event);
           await supabase
             .from("onecode_webhook_events")
             .update({ processed: true })
@@ -119,7 +136,7 @@ serve(async (req) => {
           return;
         }
 
-        // Build row for onecode_messages_raw
+        console.log("Iniciando persistência no banco - onecode_messages_raw");
         const row = {
           onecode_message_id: messageId,
           ticket_id: String(ticketIdRaw ?? ""),
@@ -142,15 +159,18 @@ serve(async (req) => {
           .from("onecode_messages_raw")
           .upsert(row, { onConflict: "onecode_message_id", ignoreDuplicates: true });
 
-        if (upsertError) throw upsertError;
+        if (upsertError) {
+          console.error("Upsert error:", JSON.stringify(upsertError));
+          throw upsertError;
+        }
 
-        // Mark event as processed
+        console.log("Mensagem salva com sucesso, marcando evento como processed");
         await supabase
           .from("onecode_webhook_events")
           .update({ processed: true, error_message: null })
           .eq("id", eventId);
       } catch (procError: any) {
-        console.error("Processing error:", procError);
+        console.error("Processing error:", procError.message ?? String(procError));
         await supabase
           .from("onecode_webhook_events")
           .update({ processed: false, error_message: procError.message ?? String(procError) })
@@ -158,28 +178,18 @@ serve(async (req) => {
       }
     })();
 
-    // Use waitUntil if available (edge runtime), otherwise just fire-and-forget
+    // Use waitUntil if available, otherwise await inline
     if (typeof (globalThis as any).EdgeRuntime?.waitUntil === "function") {
       (globalThis as any).EdgeRuntime.waitUntil(processPromise);
     } else {
-      // fallback: await inline (still returns 200 quickly for simple payloads)
       processPromise.catch((e) => console.error("Background processing error:", e));
     }
 
+    console.log("Retornando 200 OK");
     return jsonResp({ ok: true, source, event_id: eventId });
-  } catch (e: any) {
-    console.error("Webhook error:", e);
-
-    // Try to log the error in the event table
-    if (eventId) {
-      try {
-        await supabase
-          .from("onecode_webhook_events")
-          .update({ error_message: e.message ?? String(e) })
-          .eq("id", eventId);
-      } catch (_) { /* best effort */ }
-    }
-
-    return jsonResp({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
+  } catch (err: any) {
+    console.error("Erro geral webhook:", err.message ?? String(err));
+    console.error("Stack:", err.stack ?? "no stack");
+    return jsonResp({ error: err.message ?? "Unknown error" }, 500);
   }
 });
