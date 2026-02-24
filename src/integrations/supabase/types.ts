@@ -14,6 +14,129 @@ export type Database = {
   }
   public: {
     Tables: {
+      bc_contracts: {
+        Row: {
+          active: boolean
+          bc_contract_id: number
+          created_at: string
+          id: string
+          portal_company_id: string
+          tenant_id: string
+        }
+        Insert: {
+          active?: boolean
+          bc_contract_id: number
+          created_at?: string
+          id?: string
+          portal_company_id: string
+          tenant_id: string
+        }
+        Update: {
+          active?: boolean
+          bc_contract_id?: number
+          created_at?: string
+          id?: string
+          portal_company_id?: string
+          tenant_id?: string
+        }
+        Relationships: []
+      }
+      bc_invoice_map: {
+        Row: {
+          bc_contract_id: number
+          bc_invoice_id: number
+          competencia: string
+          created_at: string
+          due_date: string | null
+          id: string
+          last_payment_sync_at: string | null
+          last_synced_value: number | null
+          message: string | null
+          paid: boolean
+          payment_date: string | null
+          payment_value: number | null
+          portal_company_id: string
+          status: string
+          synced_at: string | null
+          tenant_id: string
+        }
+        Insert: {
+          bc_contract_id: number
+          bc_invoice_id: number
+          competencia: string
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          last_payment_sync_at?: string | null
+          last_synced_value?: number | null
+          message?: string | null
+          paid?: boolean
+          payment_date?: string | null
+          payment_value?: number | null
+          portal_company_id: string
+          status?: string
+          synced_at?: string | null
+          tenant_id: string
+        }
+        Update: {
+          bc_contract_id?: number
+          bc_invoice_id?: number
+          competencia?: string
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          last_payment_sync_at?: string | null
+          last_synced_value?: number | null
+          message?: string | null
+          paid?: boolean
+          payment_date?: string | null
+          payment_value?: number | null
+          portal_company_id?: string
+          status?: string
+          synced_at?: string | null
+          tenant_id?: string
+        }
+        Relationships: []
+      }
+      bc_sync_log: {
+        Row: {
+          action: string
+          competencia: string | null
+          created_at: string
+          duration_ms: number | null
+          id: string
+          ok: boolean
+          portal_company_id: string | null
+          request_json: Json | null
+          response_json: Json | null
+          tenant_id: string
+        }
+        Insert: {
+          action: string
+          competencia?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          id?: string
+          ok?: boolean
+          portal_company_id?: string | null
+          request_json?: Json | null
+          response_json?: Json | null
+          tenant_id: string
+        }
+        Update: {
+          action?: string
+          competencia?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          id?: string
+          ok?: boolean
+          portal_company_id?: string | null
+          request_json?: Json | null
+          response_json?: Json | null
+          tenant_id?: string
+        }
+        Relationships: []
+      }
       empresas: {
         Row: {
           cnpj: string
