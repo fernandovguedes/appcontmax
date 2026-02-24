@@ -13,6 +13,7 @@ import Honorarios from "./pages/Honorarios";
 import ComparativoTributario from "./pages/ComparativoTributario";
 import DashboardExecutivo from "./pages/DashboardExecutivo";
 import QualidadeAtendimento from "./pages/QualidadeAtendimento";
+import OnecodeContacts from "./pages/OnecodeContacts";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +49,7 @@ const App = () => (
             <Route path="/dashboard-executivo" element={<ProtectedRoute><DashboardExecutivo /></ProtectedRoute>} />
             <Route path="/qualidade-atendimento" element={<ProtectedRoute><QualidadeAtendimento /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+            <Route path="/admin/onecode-contacts" element={<ProtectedRoute><OnecodeContacts /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
