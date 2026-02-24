@@ -327,6 +327,45 @@ export type Database = {
           },
         ]
       }
+      onecode_webhook_events: {
+        Row: {
+          error_message: string | null
+          id: string
+          message_id: string | null
+          onecode_action: string | null
+          onecode_object: string | null
+          payload_json: Json | null
+          processed: boolean
+          received_at: string
+          source: string | null
+          ticket_id: number | null
+        }
+        Insert: {
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          onecode_action?: string | null
+          onecode_object?: string | null
+          payload_json?: Json | null
+          processed?: boolean
+          received_at?: string
+          source?: string | null
+          ticket_id?: number | null
+        }
+        Update: {
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          onecode_action?: string | null
+          onecode_object?: string | null
+          payload_json?: Json | null
+          processed?: boolean
+          received_at?: string
+          source?: string | null
+          ticket_id?: number | null
+        }
+        Relationships: []
+      }
       organizacoes: {
         Row: {
           created_at: string
