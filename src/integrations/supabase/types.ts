@@ -217,6 +217,7 @@ export type Database = {
           created_at_onecode: string | null
           from_me: boolean
           id: string
+          is_group: boolean
           onecode_message_id: string
           organizacao_id: string
           payload_json: Json | null
@@ -232,6 +233,7 @@ export type Database = {
           created_at_onecode?: string | null
           from_me: boolean
           id?: string
+          is_group?: boolean
           onecode_message_id: string
           organizacao_id: string
           payload_json?: Json | null
@@ -247,6 +249,7 @@ export type Database = {
           created_at_onecode?: string | null
           from_me?: boolean
           id?: string
+          is_group?: boolean
           onecode_message_id?: string
           organizacao_id?: string
           payload_json?: Json | null

@@ -57,13 +57,41 @@ serve(async (req) => {
     // Fetch messages
     const { data: messages, error: msgError } = await supabase
       .from("onecode_messages_raw")
-      .select("from_me, body, created_at_onecode, user_id, user_name, organizacao_id")
+      .select("from_me, body, created_at_onecode, user_id, user_name, organizacao_id, is_group")
       .eq("ticket_id", String(ticket_id))
       .order("created_at_onecode", { ascending: true });
 
     if (msgError) throw new Error(msgError.message);
 
     const organizacaoId = messages?.[0]?.organizacao_id;
+
+    // Skip group tickets — save null score without calling AI
+    const isGroup = messages?.some((m: any) => m.is_group);
+    if (isGroup) {
+      console.log("Group ticket detected, skipping scoring:", ticket_id);
+      const groupRow = {
+        ticket_id: String(ticket_id),
+        user_id: messages?.find((m: any) => m.from_me)?.user_id || null,
+        user_name: messages?.find((m: any) => m.from_me)?.user_name || null,
+        score_final: null,
+        feedback: "Ticket de grupo — ignorado na avaliação de qualidade.",
+        model_used: "skipped",
+        organizacao_id: organizacaoId || "00000000-0000-0000-0000-000000000000",
+      };
+      const { data: saved, error: saveErr } = await supabase
+        .from("onecode_ticket_scores")
+        .upsert(groupRow, { onConflict: "ticket_id" })
+        .select()
+        .single();
+      if (saveErr) throw new Error(saveErr.message);
+      return jsonResp({
+        ok: true,
+        score: saved,
+        skipped: true,
+        reason: "group_ticket",
+        elapsed_ms: Date.now() - t0,
+      });
+    }
 
     // Not enough messages — save null score with reason
     if (!messages || messages.length < 2) {
