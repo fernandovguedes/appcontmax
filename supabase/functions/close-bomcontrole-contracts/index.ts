@@ -7,8 +7,8 @@ const corsHeaders = {
 };
 
 const BC_BASE = "https://apinewintegracao.bomcontrole.com.br/integracao";
-const BATCH_SIZE = 3;
-const DELAY_MS = 3000;
+const BATCH_SIZE = 2;
+const DELAY_MS = 5000;
 
 function getApiKey(tenantId: string): string {
   const envKey = `BOMCONTROLE_API_KEY_${tenantId.toUpperCase()}`;
