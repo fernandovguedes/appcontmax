@@ -1,117 +1,87 @@
 
-# Sincronizacao Automatica (Cron) - sync-acessorias
+# Dashboard Executivo - Relatorio Gerencial
 
 ## Resumo
 
-Criar uma nova Edge Function `sync-acessorias-cron` que sera disparada automaticamente via `pg_cron` as 06h e 18h (horario de Brasilia, GMT-3), equivalente a `0 9,21 * * *` em UTC. Essa funcao orquestra a sincronizacao para ambos os tenants (contmax e pg), reutilizando a logica existente da `runSync` diretamente (sem depender de autenticacao de usuario).
+Criar uma nova pagina "Dashboard Executivo" que apresenta metricas gerenciais sobre a base de clientes, com cards KPI, grafico de distribuicao por regime tributario e grafico de crescimento mensal. O usuario pode selecionar qual organizacao visualizar (Contmax, P&G ou ambas).
 
-## Etapas
+## O que sera criado
 
-### 1. Habilitar extensoes pg_cron e pg_net
+### 1. Nova pagina `src/pages/DashboardExecutivo.tsx`
 
-Criar migracao SQL para garantir que as extensoes necessarias estejam ativas:
+Seguindo o mesmo template visual das demais paginas (AppHeader, LoadingSkeleton, glass-morphism, gradientes azul escuro, cards com borda lateral):
 
-```sql
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-CREATE EXTENSION IF NOT EXISTS pg_net;
-```
+**Seletor de organizacao**: Select no topo com opcoes "Contmax", "P&G" e "Todas". Ao trocar, recarrega os dados filtrando por `organizacao_id`.
 
-### 2. Criar Edge Function `sync-acessorias-cron`
+**Cards KPI superiores** (3 cards em grid):
+- Total de empresas ativas (excluindo baixadas)
+- Novos clientes no mes atual (filtro por `data_cadastro` no mes/ano corrente)
+- Crescimento % vs mes anterior (comparando novos clientes do mes atual com mes anterior)
 
-Arquivo: `supabase/functions/sync-acessorias-cron/index.ts`
+**Grafico de distribuicao por regime tributario**:
+- BarChart horizontal ou PieChart usando Recharts (ja instalado)
+- Agrupa empresas por `regime_tributario` e mostra contagem
+- Usa as mesmas cores e estilos dos graficos do comparativo
 
-A funcao:
-- Usa `SUPABASE_SERVICE_ROLE_KEY` para autenticar (sem depender de usuario/frontend)
-- Para cada tenant (`contmax`, `pg`):
-  - Busca o `organizacao_id` pela slug
-  - Verifica lock: consulta `sync_jobs` se ha job com `status = 'running'` para aquele tenant. Se houver, pula e loga
-  - Busca o token da API (`ACESSORIAS_TOKEN_CONTMAX` / `ACESSORIAS_TOKEN_PG`)
-  - Busca `base_url` de `tenant_integrations` (ou usa default)
-  - Verifica se integracao esta habilitada
-  - Cria registro em `sync_jobs` com `created_by_user_id = NULL` (cron)
-  - Executa `runSync` (mesma logica extraida/copiada do sync-acessorias original)
-- Loga inicio/fim e job_id de cada disparo
+**Grafico de crescimento mensal**:
+- AreaChart ou BarChart mostrando ultimos 12 meses
+- Agrupa empresas pela coluna `data_cadastro` (formato YYYY-MM-DD) por mes
+- Eixo X: meses cronologicamente ordenados
+- Eixo Y: quantidade de novos cadastros
 
-### 3. Configurar config.toml
+**Estados**: Loading skeleton enquanto carrega, mensagem amigavel se nao houver dados.
 
-Adicionar entrada para a nova funcao:
+### 2. Registro de rota em `src/App.tsx`
 
-```toml
-[functions.sync-acessorias-cron]
-verify_jwt = false
-```
+Adicionar rota `/dashboard-executivo` protegida.
 
-Nota: o arquivo config.toml e gerenciado automaticamente, mas a entrada sera necessaria.
+### 3. Registro no Portal em `src/pages/Portal.tsx`
 
-### 4. Registrar cron job via SQL (insert tool, nao migracao)
+Adicionar entrada em `MODULE_ROUTES` para o slug `dashboard-executivo`.
 
-Usar `pg_cron` + `pg_net` para chamar a Edge Function no schedule:
+### 4. Criar modulo no banco de dados
 
-```sql
-SELECT cron.schedule(
-  'sync-acessorias-cron',
-  '0 9,21 * * *',
-  $$
-  SELECT net.http_post(
-    url := 'https://dpgfvvxxaoikdbfrqhwp.supabase.co/functions/v1/sync-acessorias-cron',
-    headers := '{"Content-Type": "application/json", "Authorization": "Bearer <ANON_KEY>"}'::jsonb,
-    body := '{"source": "cron"}'::jsonb
-  ) AS request_id;
-  $$
-);
-```
+Inserir registro na tabela `modules` com:
+- slug: `dashboard-executivo`
+- nome: `Dashboard Executivo`
+- descricao: `Relatorio Gerencial`
+- icone: `BarChart3`
+- organizacao_id: NULL (disponivel para ambas)
+- ativo: true
 
-### 5. Alterar tabela sync_jobs
+### 5. Adicionar icone ao Portal
 
-A coluna `created_by_user_id` ja e nullable, entao nenhuma migracao adicional e necessaria. Jobs criados pelo cron terao esse campo como NULL.
+Adicionar `BarChart3` ao `ICON_MAP` (ja esta mapeado).
 
 ---
 
 ## Detalhes tecnicos
 
-### Arquivos alterados/criados
+### Queries ao banco
+
+Todas as queries usam a tabela `empresas` existente e filtram por `organizacao_id`. A query seleciona apenas colunas leves: `id, data_cadastro, regime_tributario, data_baixa, organizacao_id`.
+
+Para "Todas" as organizacoes, a query nao aplica filtro de `organizacao_id`.
+
+Calculos de KPI sao feitos no frontend apos buscar os dados:
+- Total de empresas: `empresas.filter(e => !e.data_baixa).length`
+- Novos no mes: filtro por `data_cadastro` comecando com `YYYY-MM` do mes atual
+- Crescimento %: `((novosAtual - novosAnterior) / novosAnterior) * 100`
+
+### Arquivos criados/alterados
 
 | Arquivo | Acao |
 |---|---|
-| `supabase/functions/sync-acessorias-cron/index.ts` | Criar (nova funcao) |
-| `supabase/config.toml` | Atualizado automaticamente |
+| `src/pages/DashboardExecutivo.tsx` | Criar |
+| `src/App.tsx` | Adicionar rota |
+| `src/pages/Portal.tsx` | Adicionar slug no MODULE_ROUTES |
+| Migracao SQL | Inserir modulo na tabela modules |
 
-### Migracao SQL
+### Componentes reutilizados
 
-- Habilitar `pg_cron` e `pg_net`
-
-### Insert SQL (nao migracao)
-
-- Registrar o cron schedule com `cron.schedule()`
-
-### Logica de lock
-
-```text
-SELECT count(*) FROM sync_jobs
-WHERE tenant_id = <id> AND status = 'running'
-```
-
-Se count > 0, pula aquele tenant e loga "Skipped: job already running".
-
-### Fluxo da Edge Function cron
-
-```text
-POST /functions/v1/sync-acessorias-cron
-  |
-  +-- Para cada tenant [contmax, pg]:
-       |
-       +-- Buscar organizacao_id
-       +-- Verificar lock (job running?)
-       +-- Se locked: logar skip, continuar
-       +-- Buscar API token e base_url
-       +-- Criar sync_job (created_by_user_id = NULL)
-       +-- Executar runSync via EdgeRuntime.waitUntil
-       +-- Logar job_id
-  |
-  +-- Retornar resumo { contmax: job_id|skipped, pg: job_id|skipped }
-```
-
-### Schedule
-
-- Cron expression: `0 9,21 * * *` (UTC)
-- Equivale a 06:00 e 18:00 horario de Brasilia (GMT-3)
+- `AppHeader` (cabecalho com breadcrumbs e logout)
+- `LoadingSkeleton` (estado de carregamento)
+- `Card, CardContent, CardHeader, CardTitle` (shadcn)
+- `Select` (seletor de organizacao)
+- `BarChart, PieChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Bar, Cell` do Recharts
+- Cores e estilos do sistema: `hsl(var(--chart-1))`, gradientes, `header-gradient`, `border-l-4`
