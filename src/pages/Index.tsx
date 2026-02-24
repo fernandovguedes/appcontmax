@@ -14,6 +14,8 @@ import { DashboardSummary } from "@/components/DashboardSummary";
 import { EmpresaTable } from "@/components/EmpresaTable";
 import { FaturamentoFormDialog } from "@/components/FaturamentoFormDialog";
 import { WhatsAppConfirmDialog } from "@/components/WhatsAppConfirmDialog";
+import { WhatsAppBatchBar } from "@/components/WhatsAppBatchBar";
+import { WhatsAppBatchConfirmDialog } from "@/components/WhatsAppBatchConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -57,6 +59,13 @@ const Index = () => {
   const [questorFilter, setQuestorFilter] = useState(false);
   const [faturamentoEmpresa, setFaturamentoEmpresa] = useState<Empresa | null>(null);
   const [whatsappEmpresa, setWhatsappEmpresa] = useState<Empresa | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchDialogOpen, setBatchDialogOpen] = useState(false);
+
+  // Clear selection when month changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [mesSelecionado]);
 
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
   const isDctfPos = isMesDctfPosFechamento(mesSelecionado);
@@ -269,8 +278,28 @@ const Index = () => {
           onExtratoChange={handleExtratoChange}
           onMesFieldChange={handleMesFieldChange}
           onSendWhatsApp={handleSendWhatsApp}
+          selectedIds={selectedIds}
+          onSelectionChange={setSelectedIds}
         />
       </main>
+
+      <WhatsAppBatchBar
+        selectedCount={selectedIds.size}
+        mesSelecionado={mesSelecionado}
+        onSend={() => setBatchDialogOpen(true)}
+        onClear={() => setSelectedIds(new Set())}
+      />
+
+      <WhatsAppBatchConfirmDialog
+        open={batchDialogOpen}
+        onOpenChange={setBatchDialogOpen}
+        empresas={filtered.filter((e) => selectedIds.has(e.id))}
+        mesSelecionado={mesSelecionado}
+        onComplete={() => {
+          setSelectedIds(new Set());
+          setBatchDialogOpen(false);
+        }}
+      />
 
       {faturamentoEmpresa && (
         <FaturamentoFormDialog
