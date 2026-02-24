@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.send-whatsapp-batch]
 verify_jwt = false
+
+[functions.sync-acessorias]
+verify_jwt = false

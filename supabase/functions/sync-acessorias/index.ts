@@ -6,7 +6,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const THROTTLE_MS = 750; // ~80 req/min
+const THROTTLE_MS = 750;
 
 async function sha256(text: string): Promise<string> {
   const data = new TextEncoder().encode(text);
@@ -39,8 +39,29 @@ function formatCnpj(raw: string): string {
 }
 
 Deno.serve(async (req) => {
+  // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  const url = new URL(req.url);
+  console.log(`[sync-acessorias] ${req.method} ${url.pathname}${url.search}`);
+
+  // --- PING endpoint (GET) ---
+  if (req.method === "GET") {
+    console.log("[sync-acessorias] PING request received");
+    return new Response(
+      JSON.stringify({ ok: true, timestamp: new Date().toISOString() }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  // --- POST: actual sync ---
+  if (req.method !== "POST") {
+    return new Response(
+      JSON.stringify({ error: `Method ${req.method} not allowed` }),
+      { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 
   try {
@@ -51,10 +72,11 @@ Deno.serve(async (req) => {
     // --- Auth: validate JWT ---
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.log("[sync-acessorias] Missing or invalid Authorization header");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", detail: "Missing or invalid Authorization header. Ensure you are logged in." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const userClient = createClient(supabaseUrl, anonKey, {
@@ -65,23 +87,23 @@ Deno.serve(async (req) => {
     const { data: claimsData, error: claimsError } =
       await userClient.auth.getClaims(token);
     if (claimsError || !claimsData?.claims) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.log("[sync-acessorias] JWT validation failed:", claimsError?.message || "no claims");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", detail: `JWT validation failed: ${claimsError?.message || "invalid token"}` }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
     const userId = claimsData.claims.sub as string;
 
     // --- Parse body ---
     const body = await req.json();
     const tenantSlug = body.tenant_slug;
+    console.log(`[sync-acessorias] POST sync request - tenant_slug: ${tenantSlug}, userId: ${userId}`);
+
     if (!tenantSlug || !["contmax", "pg"].includes(tenantSlug)) {
       return new Response(
-        JSON.stringify({ error: "Invalid tenant_slug. Use 'contmax' or 'pg'" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        JSON.stringify({ error: "Invalid tenant_slug", detail: `Received '${tenantSlug}'. Valid values: 'contmax', 'pg'` }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -94,12 +116,10 @@ Deno.serve(async (req) => {
       _tenant_slug: tenantSlug,
     });
     if (!isAdmin) {
+      console.log(`[sync-acessorias] User ${userId} is NOT admin for tenant ${tenantSlug}`);
       return new Response(
-        JSON.stringify({ error: "Forbidden: tenant admin required" }),
-        {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        JSON.stringify({ error: "Forbidden", detail: `User is not admin for tenant '${tenantSlug}'. Contact your administrator.` }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -110,10 +130,10 @@ Deno.serve(async (req) => {
       .eq("slug", tenantSlug)
       .single();
     if (!tenant) {
-      return new Response(JSON.stringify({ error: "Tenant not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Tenant not found", detail: `No organization found with slug '${tenantSlug}'` }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
     const tenantId = tenant.id;
 
@@ -125,11 +145,8 @@ Deno.serve(async (req) => {
     const apiToken = Deno.env.get(secretName);
     if (!apiToken) {
       return new Response(
-        JSON.stringify({ error: `Token not configured for ${tenantSlug}` }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        JSON.stringify({ error: "Configuration error", detail: `API token '${secretName}' not configured for tenant '${tenantSlug}'` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -144,13 +161,12 @@ Deno.serve(async (req) => {
     const baseUrl = integration?.base_url || "https://api.acessorias.com";
     if (integration && !integration.is_enabled) {
       return new Response(
-        JSON.stringify({ error: "Integration disabled for this tenant" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        JSON.stringify({ error: "Integration disabled", detail: `Acessorias integration is disabled for tenant '${tenantSlug}'` }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    console.log(`[sync-acessorias] Starting sync for tenant ${tenantSlug} (${tenantId}), baseUrl: ${baseUrl}`);
 
     // --- Create sync_job ---
     const { data: job } = await supabase
@@ -194,6 +210,7 @@ Deno.serve(async (req) => {
         await sleep(THROTTLE_MS);
 
         const apiUrl = `${baseUrl}/companies/ListAll?page=${page}`;
+        console.log(`[sync-acessorias] Fetching ${apiUrl}`);
         const res = await fetch(apiUrl, {
           headers: { Authorization: `Bearer ${apiToken}` },
         });
@@ -209,7 +226,6 @@ Deno.serve(async (req) => {
 
         const data = await res.json();
 
-        // Handle different response shapes
         const companies = Array.isArray(data)
           ? data
           : Array.isArray(data?.data)
@@ -226,7 +242,6 @@ Deno.serve(async (req) => {
         for (const company of companies) {
           totalRead++;
           try {
-            // Extract key (CNPJ or CPF)
             const rawKey =
               company.cnpj ||
               company.cpf ||
@@ -249,11 +264,9 @@ Deno.serve(async (req) => {
               company.name ||
               "Sem nome";
 
-            // Calculate hash
             const sortedJson = JSON.stringify(company, Object.keys(company).sort());
             const hash = await sha256(sortedJson);
 
-            // Check existing
             const { data: existing } = await supabase
               .from("empresas")
               .select("id, hash_payload")
@@ -262,7 +275,6 @@ Deno.serve(async (req) => {
               .maybeSingle();
 
             if (!existing) {
-              // INSERT
               const { error: insertErr } = await supabase
                 .from("empresas")
                 .insert({
@@ -290,7 +302,6 @@ Deno.serve(async (req) => {
                 totalCreated++;
               }
             } else if (existing.hash_payload !== hash) {
-              // UPDATE
               const { error: updateErr } = await supabase
                 .from("empresas")
                 .update({
@@ -366,6 +377,8 @@ Deno.serve(async (req) => {
       await logEntry("error", "Sync failed", { error: String(syncErr) });
     }
 
+    console.log(`[sync-acessorias] Sync complete: read=${totalRead} created=${totalCreated} updated=${totalUpdated} skipped=${totalSkipped} errors=${totalErrors}`);
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -381,9 +394,10 @@ Deno.serve(async (req) => {
       }
     );
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("[sync-acessorias] Unhandled error:", String(err));
+    return new Response(
+      JSON.stringify({ error: "Internal server error", detail: String(err) }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 });
