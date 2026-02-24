@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.sync-bomcontrole-cron]
 verify_jwt = false
+
+[functions.close-bomcontrole-contracts]
+verify_jwt = false
