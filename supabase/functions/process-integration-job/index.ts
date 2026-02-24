@@ -1,0 +1,237 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+const FUNCTION_MAP: Record<string, string> = {
+  acessorias: "sync-acessorias",
+  bomcontrole: "sync-bomcontrole",
+  onecode: "sync-onecode-contacts",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const admin = createClient(supabaseUrl, serviceRoleKey);
+
+  try {
+    // 1. First, timeout stale running jobs (> 10 min)
+    await admin
+      .from("integration_jobs")
+      .update({
+        status: "error",
+        error_message: "Timeout: job ficou running por mais de 10 minutos",
+        finished_at: new Date().toISOString(),
+      })
+      .eq("status", "running")
+      .lt("started_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
+
+    // 2. Fetch next pending job
+    const { data: job, error: jobError } = await admin
+      .from("integration_jobs")
+      .select("*")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (jobError) throw jobError;
+
+    if (!job) {
+      return new Response(JSON.stringify({ message: "No pending jobs" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 3. Mark as running
+    const startTime = Date.now();
+    await admin
+      .from("integration_jobs")
+      .update({
+        status: "running",
+        started_at: new Date().toISOString(),
+        attempts: (job.attempts ?? 0) + 1,
+        progress: 5,
+      })
+      .eq("id", job.id);
+
+    // 4. Check integration is enabled
+    const { data: ti } = await admin
+      .from("tenant_integrations")
+      .select("*")
+      .eq("tenant_id", job.tenant_id)
+      .eq("provider", job.provider_slug)
+      .maybeSingle();
+
+    if (!ti || !ti.is_enabled) {
+      const errMsg = !ti ? "Integration not found" : "Integration is disabled";
+      await finalizeJob(admin, job, "error", errMsg, startTime, null);
+      return new Response(JSON.stringify({ error: errMsg }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Update tenant_integrations to running
+    await admin
+      .from("tenant_integrations")
+      .update({ last_status: "running", last_run: new Date().toISOString(), last_error: null })
+      .eq("id", ti.id);
+
+    // 5. Update progress to 20% before delegating
+    await admin
+      .from("integration_jobs")
+      .update({ progress: 20 })
+      .eq("id", job.id);
+
+    // 6. Delegate to specific function
+    const functionName = FUNCTION_MAP[job.provider_slug];
+    if (!functionName) {
+      const errMsg = `No function mapped for provider: ${job.provider_slug}`;
+      await finalizeJob(admin, job, "error", errMsg, startTime, null);
+      await admin
+        .from("tenant_integrations")
+        .update({ last_status: "error", last_error: errMsg })
+        .eq("id", ti.id);
+      return new Response(JSON.stringify({ error: errMsg }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Progress 50%
+    await admin
+      .from("integration_jobs")
+      .update({ progress: 50 })
+      .eq("id", job.id);
+
+    const fnUrl = `${supabaseUrl}/functions/v1/${functionName}`;
+    let fnResponse: any = null;
+    let fnError: string | null = null;
+
+    try {
+      const fnBody: any = { tenant_id: job.tenant_id };
+      if (job.provider_slug === "acessorias") {
+        const { data: org } = await admin
+          .from("organizacoes")
+          .select("slug")
+          .eq("id", job.tenant_id)
+          .single();
+        if (org) fnBody.org_slug = org.slug;
+      }
+
+      const resp = await fetch(fnUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify(fnBody),
+      });
+
+      fnResponse = await resp.json().catch(() => ({ status: resp.status }));
+
+      if (!resp.ok) {
+        fnError = fnResponse?.error ?? `HTTP ${resp.status}`;
+      }
+    } catch (e: any) {
+      fnError = e.message ?? "Unknown error";
+    }
+
+    // Progress 90%
+    await admin
+      .from("integration_jobs")
+      .update({ progress: 90 })
+      .eq("id", job.id);
+
+    const finalStatus = fnError ? "error" : "success";
+
+    // 7. Handle retry
+    if (fnError && (job.attempts ?? 0) + 1 < (job.max_attempts ?? 3)) {
+      // Retry: set back to pending
+      await admin
+        .from("integration_jobs")
+        .update({
+          status: "pending",
+          progress: 0,
+          error_message: fnError,
+        })
+        .eq("id", job.id);
+
+      // Don't update tenant_integrations yet — let the retry handle it
+      return new Response(
+        JSON.stringify({ status: "retry", job_id: job.id, attempt: (job.attempts ?? 0) + 1 }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 8. Finalize
+    await finalizeJob(admin, job, finalStatus, fnError, startTime, fnResponse);
+
+    // Update tenant_integrations
+    await admin
+      .from("tenant_integrations")
+      .update({
+        last_status: finalStatus,
+        last_error: fnError,
+      })
+      .eq("id", ti.id);
+
+    // 9. Log to integration_logs for compatibility
+    const executionId = crypto.randomUUID();
+    await admin.from("integration_logs").insert({
+      tenant_id: job.tenant_id,
+      integration: job.provider_slug,
+      provider_slug: job.provider_slug,
+      execution_id: executionId,
+      status: finalStatus,
+      error_message: fnError,
+      execution_time_ms: Date.now() - startTime,
+      total_processados: fnResponse?.total_processados ?? 0,
+      total_matched: fnResponse?.total_matched ?? 0,
+      total_ignored: fnResponse?.total_ignored ?? 0,
+      total_review: fnResponse?.total_review ?? 0,
+      response: fnResponse,
+    });
+
+    return new Response(
+      JSON.stringify({ status: finalStatus, job_id: job.id }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (err: any) {
+    console.error("process-integration-job error:", err);
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
+
+async function finalizeJob(
+  admin: any,
+  job: any,
+  status: string,
+  errorMessage: string | null,
+  startTime: number,
+  result: any
+) {
+  const executionTime = Date.now() - startTime;
+  await admin
+    .from("integration_jobs")
+    .update({
+      status,
+      progress: status === "success" ? 100 : 0,
+      error_message: errorMessage,
+      finished_at: new Date().toISOString(),
+      execution_time_ms: executionTime,
+      result,
+    })
+    .eq("id", job.id);
+}

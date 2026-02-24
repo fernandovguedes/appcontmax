@@ -1,20 +1,16 @@
 import { AppHeader } from "@/components/AppHeader";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { useIntegrations, IntegrationWithProvider } from "@/hooks/useIntegrations";
+import { useIntegrationJobs } from "@/hooks/useIntegrationJobs";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Play, Settings, ScrollText, Plug, ArrowLeft } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Play, Settings, ScrollText, Plug, Loader2, AlertCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-
-const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  success: { label: "Ativo", variant: "default" },
-  running: { label: "Executando", variant: "secondary" },
-  error: { label: "Erro", variant: "destructive" },
-};
 
 const CATEGORY_LABELS: Record<string, string> = {
   fiscal: "Fiscal",
@@ -28,15 +24,37 @@ function IntegrationCard({
   integration,
   onRun,
   onNavigate,
+  activeJob,
+  latestJob,
 }: {
   integration: IntegrationWithProvider;
   onRun: () => void;
   onNavigate: () => void;
+  activeJob?: any;
+  latestJob?: any;
 }) {
   const provider = integration.providerData;
   const name = provider?.name ?? integration.provider;
   const category = provider?.category ?? "general";
-  const statusInfo = STATUS_MAP[integration.last_status ?? ""] ?? { label: integration.is_enabled ? "Configurado" : "Desativado", variant: "outline" as const };
+
+  const isProcessing = !!activeJob;
+  const lastJobFailed = !isProcessing && latestJob?.status === "error";
+  const lastJobSuccess = !isProcessing && latestJob?.status === "success";
+
+  let statusBadge: { label: string; variant: "default" | "secondary" | "destructive" | "outline" };
+  if (isProcessing) {
+    statusBadge = { label: activeJob.status === "pending" ? "Na fila..." : "Processando...", variant: "secondary" };
+  } else if (lastJobFailed) {
+    statusBadge = { label: "Falha", variant: "destructive" };
+  } else if (lastJobSuccess) {
+    statusBadge = { label: "Concluído", variant: "default" };
+  } else if (integration.last_status === "success") {
+    statusBadge = { label: "Ativo", variant: "default" };
+  } else if (integration.last_status === "error") {
+    statusBadge = { label: "Erro", variant: "destructive" };
+  } else {
+    statusBadge = { label: integration.is_enabled ? "Configurado" : "Desativado", variant: "outline" };
+  }
 
   return (
     <Card className="card-hover accent-bar-left overflow-hidden border-border/60">
@@ -51,7 +69,10 @@ function IntegrationCard({
               <p className="text-xs text-muted-foreground">{CATEGORY_LABELS[category] ?? category}</p>
             </div>
           </div>
-          <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+          <Badge variant={statusBadge.variant}>
+            {isProcessing && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+            {statusBadge.label}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -59,22 +80,39 @@ function IntegrationCard({
           <p className="text-sm text-muted-foreground line-clamp-2">{provider.description}</p>
         )}
 
-        {integration.last_run && (
+        {/* Progress bar for active jobs */}
+        {isProcessing && (
+          <div className="space-y-1">
+            <Progress value={activeJob.progress ?? 0} className="h-2" />
+            <p className="text-xs text-muted-foreground text-right">{activeJob.progress ?? 0}%</p>
+          </div>
+        )}
+
+        {integration.last_run && !isProcessing && (
           <p className="text-xs text-muted-foreground">
             Última execução:{" "}
             {formatDistanceToNow(new Date(integration.last_run), { addSuffix: true, locale: ptBR })}
           </p>
         )}
 
-        {integration.last_error && integration.last_status === "error" && (
-          <p className="text-xs text-destructive truncate" title={integration.last_error}>
-            {integration.last_error}
-          </p>
+        {/* Error from last job */}
+        {lastJobFailed && latestJob.error_message && (
+          <div className="flex items-start gap-1.5">
+            <AlertCircle className="h-3.5 w-3.5 text-destructive mt-0.5 shrink-0" />
+            <p className="text-xs text-destructive truncate" title={latestJob.error_message}>
+              {latestJob.error_message}
+            </p>
+          </div>
         )}
 
         <div className="flex gap-2 pt-1">
-          <Button size="sm" variant="default" onClick={onRun} disabled={!integration.is_enabled}>
-            <Play className="h-3 w-3 mr-1" /> Executar
+          <Button size="sm" variant="default" onClick={onRun} disabled={!integration.is_enabled || isProcessing}>
+            {isProcessing ? (
+              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+            ) : (
+              <Play className="h-3 w-3 mr-1" />
+            )}
+            {isProcessing ? "Executando..." : "Executar"}
           </Button>
           <Button size="sm" variant="outline" onClick={onNavigate}>
             <Settings className="h-3 w-3 mr-1" /> Configurar
@@ -90,12 +128,13 @@ function IntegrationCard({
 
 export default function Integracoes() {
   const { user } = useAuth();
-  const { integrations, loading, runIntegration } = useIntegrations();
+  const { integrations, loading } = useIntegrations();
+  const { getActiveJob, getLatestJob, submitJob, loading: jobsLoading } = useIntegrationJobs();
   const navigate = useNavigate();
 
   const userName = user?.user_metadata?.nome || user?.email?.split("@")[0] || "";
 
-  if (loading) return <LoadingSkeleton variant="portal" />;
+  if (loading || jobsLoading) return <LoadingSkeleton variant="portal" />;
 
   return (
     <div className="min-h-screen bg-background">
@@ -118,16 +157,21 @@ export default function Integracoes() {
           </div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 stagger-children">
-            {integrations.map((integ) => (
-              <IntegrationCard
-                key={integ.id}
-                integration={integ}
-                onRun={() => runIntegration(integ.tenant_id, integ.providerData?.slug ?? integ.provider)}
-                onNavigate={() =>
-                  navigate(`/integracoes/${integ.providerData?.slug ?? integ.provider}?tenant=${integ.tenant_id}`)
-                }
-              />
-            ))}
+            {integrations.map((integ) => {
+              const providerSlug = integ.providerData?.slug ?? integ.provider;
+              return (
+                <IntegrationCard
+                  key={integ.id}
+                  integration={integ}
+                  activeJob={getActiveJob(integ.tenant_id, providerSlug)}
+                  latestJob={getLatestJob(integ.tenant_id, providerSlug)}
+                  onRun={() => submitJob(integ.tenant_id, providerSlug)}
+                  onNavigate={() =>
+                    navigate(`/integracoes/${providerSlug}?tenant=${integ.tenant_id}`)
+                  }
+                />
+              );
+            })}
           </div>
         )}
       </main>

@@ -6,12 +6,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const FUNCTION_MAP: Record<string, string> = {
-  acessorias: "sync-acessorias",
-  bomcontrole: "sync-bomcontrole",
-  onecode: "sync-onecode-contacts",
-};
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -74,107 +68,50 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Update status to running
-    await admin
-      .from("tenant_integrations")
-      .update({ last_status: "running", last_run: new Date().toISOString(), last_error: null })
-      .eq("id", ti.id);
+    // Check for existing pending/running job
+    const { data: existingJob } = await admin
+      .from("integration_jobs")
+      .select("id, status")
+      .eq("tenant_id", tenant_id)
+      .eq("provider_slug", provider_slug)
+      .in("status", ["pending", "running"])
+      .maybeSingle();
 
-    const executionId = crypto.randomUUID();
-    const startTime = Date.now();
+    if (existingJob) {
+      return new Response(
+        JSON.stringify({ error: "Já existe um job em andamento para esta integração", job_id: existingJob.id }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    // Delegate to specific function
-    const functionName = FUNCTION_MAP[provider_slug];
-    if (!functionName) {
-      const errMsg = `No function mapped for provider: ${provider_slug}`;
-      await admin
-        .from("tenant_integrations")
-        .update({ last_status: "error", last_error: errMsg })
-        .eq("id", ti.id);
-
-      await admin.from("integration_logs").insert({
+    // Create job
+    const { data: newJob, error: jobError } = await admin
+      .from("integration_jobs")
+      .insert({
         tenant_id,
-        integration: provider_slug,
         provider_slug,
-        execution_id: executionId,
-        status: "error",
-        error_message: errMsg,
-        execution_time_ms: Date.now() - startTime,
-      });
-
-      return new Response(JSON.stringify({ error: errMsg }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Call the specific edge function
-    const fnUrl = `${supabaseUrl}/functions/v1/${functionName}`;
-    let fnStatus = "success";
-    let fnError: string | null = null;
-    let fnResponse: any = null;
-
-    try {
-      const fnBody: any = { tenant_id };
-      // acessorias needs org slug
-      if (provider_slug === "acessorias") {
-        const { data: org } = await admin
-          .from("organizacoes")
-          .select("slug")
-          .eq("id", tenant_id)
-          .single();
-        if (org) fnBody.org_slug = org.slug;
-      }
-
-      const resp = await fetch(fnUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${serviceRoleKey}`,
-        },
-        body: JSON.stringify(fnBody),
-      });
-
-      fnResponse = await resp.json().catch(() => ({ status: resp.status }));
-
-      if (!resp.ok) {
-        fnStatus = "error";
-        fnError = fnResponse?.error ?? `HTTP ${resp.status}`;
-      }
-    } catch (e: any) {
-      fnStatus = "error";
-      fnError = e.message ?? "Unknown error";
-    }
-
-    const executionTime = Date.now() - startTime;
-
-    // Update tenant_integrations
-    await admin
-      .from("tenant_integrations")
-      .update({
-        last_status: fnStatus,
-        last_error: fnError,
+        status: "pending",
+        created_by: userData.user.id,
+        payload: {},
       })
-      .eq("id", ti.id);
+      .select("id")
+      .single();
 
-    // Log execution
-    await admin.from("integration_logs").insert({
-      tenant_id,
-      integration: provider_slug,
-      provider_slug,
-      execution_id: executionId,
-      status: fnStatus,
-      error_message: fnError,
-      execution_time_ms: executionTime,
-      total_processados: fnResponse?.total_processados ?? 0,
-      total_matched: fnResponse?.total_matched ?? 0,
-      total_ignored: fnResponse?.total_ignored ?? 0,
-      total_review: fnResponse?.total_review ?? 0,
-      response: fnResponse,
-    });
+    if (jobError) throw jobError;
+
+    // Fire-and-forget: trigger worker
+    const workerUrl = `${supabaseUrl}/functions/v1/process-integration-job`;
+    fetch(workerUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({}),
+    }).catch((err) => console.error("Failed to trigger worker:", err));
 
     return new Response(
-      JSON.stringify({ status: fnStatus, execution_id: executionId, execution_time_ms: executionTime }),
+      JSON.stringify({ job_id: newJob.id, status: "pending" }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {

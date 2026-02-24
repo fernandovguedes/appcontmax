@@ -303,6 +303,60 @@ export type Database = {
           },
         ]
       }
+      integration_jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          execution_time_ms: number | null
+          finished_at: string | null
+          id: string
+          max_attempts: number
+          payload: Json
+          progress: number
+          provider_slug: string
+          result: Json | null
+          started_at: string | null
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          execution_time_ms?: number | null
+          finished_at?: string | null
+          id?: string
+          max_attempts?: number
+          payload?: Json
+          progress?: number
+          provider_slug: string
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          execution_time_ms?: number | null
+          finished_at?: string | null
+          id?: string
+          max_attempts?: number
+          payload?: Json
+          progress?: number
+          provider_slug?: string
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: []
+      }
       integration_logs: {
         Row: {
           created_at: string

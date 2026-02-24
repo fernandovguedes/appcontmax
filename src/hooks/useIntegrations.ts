@@ -116,24 +116,7 @@ export function useIntegrations(tenantId?: string) {
     fetchData();
   };
 
-  const runIntegration = async (tenantIdParam: string, providerSlug: string) => {
-    try {
-      const { data, error } = await supabase.functions.invoke("run-integration", {
-        body: { tenant_id: tenantIdParam, provider_slug: providerSlug },
-      });
-
-      if (error) throw error;
-
-      toast({ title: "Execução iniciada", description: `Integração ${providerSlug} em andamento.` });
-      // Refresh after a short delay
-      setTimeout(fetchData, 2000);
-      return data;
-    } catch (err: any) {
-      toast({ title: "Erro ao executar", description: err.message, variant: "destructive" });
-    }
-  };
-
-  return { providers, integrations, loading, refetch: fetchData, toggleIntegration, runIntegration };
+  return { providers, integrations, loading, refetch: fetchData, toggleIntegration };
 }
 
 export function useIntegrationLogs(tenantId?: string, providerSlug?: string, limit = 50) {
