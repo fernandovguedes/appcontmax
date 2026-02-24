@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+const POLL_TIMEOUT_MS = 600_000; // 10 minutes
+
 export interface SyncJob {
   id: string;
   status: string;
@@ -35,8 +37,20 @@ export function useSyncAcessorias(tenantSlug: string | undefined, tenantId: stri
   const [pingResult, setPingResult] = useState<PingResult | null>(null);
   const [pinging, setPinging] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-acessorias`;
+
+  const clearPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+  }, []);
 
   const fetchHistory = useCallback(async () => {
     if (!tenantId) return;
@@ -46,7 +60,7 @@ export function useSyncAcessorias(tenantSlug: string | undefined, tenantId: stri
       .select("id, status, total_read, total_created, total_updated, total_skipped, total_errors, error_message, started_at, finished_at")
       .eq("tenant_id", tenantId)
       .order("started_at", { ascending: false })
-      .limit(1);
+      .limit(10);
     setHistory((data as SyncJob[]) ?? []);
     setLoadingHistory(false);
   }, [tenantId]);
@@ -57,13 +71,11 @@ export function useSyncAcessorias(tenantSlug: string | undefined, tenantId: stri
 
   // Cleanup polling on unmount
   useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
+    return () => clearPolling();
+  }, [clearPolling]);
 
   const pollJobStatus = useCallback((jobId: string) => {
-    if (pollRef.current) clearInterval(pollRef.current);
+    clearPolling();
     
     pollRef.current = setInterval(async () => {
       const { data } = await supabase
@@ -75,15 +87,21 @@ export function useSyncAcessorias(tenantSlug: string | undefined, tenantId: stri
       if (data) {
         setResult(data as SyncJob);
         if (data.status !== "running") {
-          // Job finished
-          if (pollRef.current) clearInterval(pollRef.current);
-          pollRef.current = null;
+          clearPolling();
           setSyncing(false);
           await fetchHistory();
         }
       }
     }, 3000);
-  }, [fetchHistory]);
+
+    // Timeout safety: stop polling after 10 minutes
+    pollTimeoutRef.current = setTimeout(() => {
+      clearPolling();
+      setSyncing(false);
+      setError({ message: "Timeout: a sincronização não finalizou em 10 minutos. Verifique o histórico." });
+      fetchHistory();
+    }, POLL_TIMEOUT_MS);
+  }, [fetchHistory, clearPolling]);
 
   const pingSync = useCallback(async () => {
     setPinging(true);
@@ -124,14 +142,24 @@ export function useSyncAcessorias(tenantSlug: string | undefined, tenantId: stri
         return;
       }
 
-      // Backend now returns immediately with job_id + status:"running"
-      if (data?.job_id) {
-        setResult({ ...(data as any), status: "running", total_read: 0, total_created: 0, total_updated: 0, total_skipped: 0, total_errors: 0, started_at: new Date().toISOString(), finished_at: null, error_message: null } as SyncJob);
-        // Start polling for completion
+      if (data?.job_id && data?.status === "running") {
+        // Backend still processing (shouldn't happen with sync mode, but keep as fallback)
+        setResult({ ...(data as any), total_read: 0, total_created: 0, total_updated: 0, total_skipped: 0, total_errors: 0, started_at: new Date().toISOString(), finished_at: null, error_message: null } as SyncJob);
         pollJobStatus(data.job_id);
       } else {
-        // Legacy: response already contains final result
-        setResult(data as SyncJob);
+        // Sync completed - backend returned final result
+        setResult({
+          id: data.job_id,
+          status: data.status ?? "success",
+          total_read: data.total_read ?? 0,
+          total_created: data.total_created ?? 0,
+          total_updated: data.total_updated ?? 0,
+          total_skipped: data.total_skipped ?? 0,
+          total_errors: data.total_errors ?? 0,
+          started_at: new Date().toISOString(),
+          finished_at: new Date().toISOString(),
+          error_message: null,
+        } as SyncJob);
         setSyncing(false);
         await fetchHistory();
       }
