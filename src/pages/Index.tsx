@@ -2,14 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useWhatsAppLogs } from "@/hooks/useWhatsAppLogs";
 import { getCompetenciaAtual } from "@/lib/formatUtils";
-import {
-  Empresa,
-  MesKey,
-  MES_LABELS,
-  StatusEntrega,
-  StatusExtrato,
-  RegimeTributario,
-} from "@/types/fiscal";
+import { Empresa, MesKey, MES_LABELS, StatusEntrega, StatusExtrato, RegimeTributario } from "@/types/fiscal";
 import { filtrarEmpresasVisiveis } from "@/lib/empresaUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardSummary } from "@/components/DashboardSummary";
@@ -25,7 +18,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, Filter, Download, AlertTriangle, FileText, Mail } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Checkbox } from "@/components/ui/checkbox";
-import { isMesFechamentoTrimestre, calcularFaturamentoTrimestre, isMesDctfPosFechamento, getTrimestreFechamentoAnterior } from "@/types/fiscal";
+import {
+  isMesFechamentoTrimestre,
+  calcularFaturamentoTrimestre,
+  isMesDctfPosFechamento,
+  getTrimestreFechamentoAnterior,
+} from "@/types/fiscal";
 import { exportToExcel } from "@/lib/exportExcel";
 import { useModulePermissions } from "@/hooks/useModulePermissions";
 import { AppHeader } from "@/components/AppHeader";
@@ -116,7 +114,15 @@ const Index = () => {
       matchesExtratoPendente = dados.extratoEnviado === "nao";
     }
 
-    return matchesSearch && matchesRegime && matchesReinf && matchesNfExterior && matchesDctfSm && matchesQuestor && matchesExtratoPendente;
+    return (
+      matchesSearch &&
+      matchesRegime &&
+      matchesReinf &&
+      matchesNfExterior &&
+      matchesDctfSm &&
+      matchesQuestor &&
+      matchesExtratoPendente
+    );
   });
 
   const handleFaturamento = useCallback((empresa: Empresa) => {
@@ -165,41 +171,55 @@ const Index = () => {
     [empresas, updateEmpresa],
   );
 
-  const handleSendWhatsApp = useCallback((empresa: Empresa, isResend?: boolean) => {
-    if (!empresa.whatsapp) {
-      toast({ title: "WhatsApp não cadastrado", description: "Esta empresa não possui número de WhatsApp cadastrado.", variant: "destructive" });
-      return;
-    }
-    setWhatsappIsResend(!!isResend);
-    setWhatsappEmpresa(empresa);
-  }, [toast]);
+  const handleSendWhatsApp = useCallback(
+    (empresa: Empresa, isResend?: boolean) => {
+      if (!empresa.whatsapp) {
+        toast({
+          title: "WhatsApp não cadastrado",
+          description: "Esta empresa não possui número de WhatsApp cadastrado.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setWhatsappIsResend(!!isResend);
+      setWhatsappEmpresa(empresa);
+    },
+    [toast],
+  );
 
-  const handleWhatsAppConfirm = useCallback(async (opts?: { is_resend?: boolean; resend_reason?: string }) => {
-    if (!whatsappEmpresa) return;
-    const comp = `${MES_LABELS[mesSelecionado]}/2026`;
-    const body = `Olá, ${whatsappEmpresa.nome}! Identificamos que o extrato de ${comp} ainda não foi enviado. Pode nos encaminhar por aqui hoje?`;
+  const handleWhatsAppConfirm = useCallback(
+    async (opts?: { is_resend?: boolean; resend_reason?: string }) => {
+      if (!whatsappEmpresa) return;
+      const comp = `${MES_LABELS[mesSelecionado]}/2026`;
+      const body = `Olá, ${whatsappEmpresa.nome}! Identificamos que o extrato de ${comp} ainda não foi enviado. Pode nos encaminhar por gentileza? Lembramos que caso não seja enviado, as declarações mensais serão entregues sem movimento.`;
 
-    const { data, error } = await supabase.functions.invoke("send-whatsapp", {
-      body: {
-        to: whatsappEmpresa.whatsapp,
-        body,
-        empresa_id: whatsappEmpresa.id,
-        ticketStrategy: "create",
-        competencia,
-        message_type: "extrato_nao_enviado",
-        is_resend: opts?.is_resend || false,
-        resend_reason: opts?.resend_reason || null,
-      },
-    });
+      const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+        body: {
+          to: whatsappEmpresa.whatsapp,
+          body,
+          empresa_id: whatsappEmpresa.id,
+          ticketStrategy: "create",
+          competencia,
+          message_type: "extrato_nao_enviado",
+          is_resend: opts?.is_resend || false,
+          resend_reason: opts?.resend_reason || null,
+        },
+      });
 
-    if (error || data?.error) {
-      toast({ title: "Erro ao enviar", description: data?.error || "Falha na comunicação com o serviço de mensagens.", variant: "destructive" });
-      throw new Error("send failed");
-    }
+      if (error || data?.error) {
+        toast({
+          title: "Erro ao enviar",
+          description: data?.error || "Falha na comunicação com o serviço de mensagens.",
+          variant: "destructive",
+        });
+        throw new Error("send failed");
+      }
 
-    toast({ title: "Mensagem enviada", description: `WhatsApp enviado para ${whatsappEmpresa.nome}.` });
-    invalidateWhatsAppLogs();
-  }, [whatsappEmpresa, mesSelecionado, competencia, toast, invalidateWhatsAppLogs]);
+      toast({ title: "Mensagem enviada", description: `WhatsApp enviado para ${whatsappEmpresa.nome}.` });
+      invalidateWhatsAppLogs();
+    },
+    [whatsappEmpresa, mesSelecionado, competencia, toast, invalidateWhatsAppLogs],
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -344,7 +364,9 @@ const Index = () => {
         <FaturamentoFormDialog
           key={faturamentoEmpresa.id}
           open={!!faturamentoEmpresa}
-          onOpenChange={(open) => { if (!open) setFaturamentoEmpresa(null); }}
+          onOpenChange={(open) => {
+            if (!open) setFaturamentoEmpresa(null);
+          }}
           empresa={faturamentoEmpresa}
           mesSelecionado={mesSelecionado}
           onUpdate={updateEmpresa}
@@ -354,7 +376,12 @@ const Index = () => {
       {whatsappEmpresa && (
         <WhatsAppConfirmDialog
           open={!!whatsappEmpresa}
-          onOpenChange={(open) => { if (!open) { setWhatsappEmpresa(null); setWhatsappIsResend(false); } }}
+          onOpenChange={(open) => {
+            if (!open) {
+              setWhatsappEmpresa(null);
+              setWhatsappIsResend(false);
+            }
+          }}
           empresa={whatsappEmpresa}
           mesSelecionado={mesSelecionado}
           onConfirm={handleWhatsAppConfirm}
