@@ -209,6 +209,102 @@ export type Database = {
           },
         ]
       }
+      onecode_messages_raw: {
+        Row: {
+          body: string | null
+          contact_id: string | null
+          created_at: string
+          created_at_onecode: string | null
+          from_me: boolean
+          id: string
+          onecode_message_id: string
+          payload_json: Json | null
+          ticket_id: string
+          user_id: string | null
+          user_name: string | null
+          whatsapp_id: string | null
+        }
+        Insert: {
+          body?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_at_onecode?: string | null
+          from_me: boolean
+          id?: string
+          onecode_message_id: string
+          payload_json?: Json | null
+          ticket_id: string
+          user_id?: string | null
+          user_name?: string | null
+          whatsapp_id?: string | null
+        }
+        Update: {
+          body?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_at_onecode?: string | null
+          from_me?: boolean
+          id?: string
+          onecode_message_id?: string
+          payload_json?: Json | null
+          ticket_id?: string
+          user_id?: string | null
+          user_name?: string | null
+          whatsapp_id?: string | null
+        }
+        Relationships: []
+      }
+      onecode_ticket_scores: {
+        Row: {
+          clareza: number | null
+          conformidade: number | null
+          cordialidade: number | null
+          created_at: string
+          feedback: string | null
+          id: string
+          model_used: string | null
+          objetividade: number | null
+          resolucao: number | null
+          score_final: number | null
+          scored_at: string
+          ticket_id: string
+          user_id: string | null
+          user_name: string | null
+        }
+        Insert: {
+          clareza?: number | null
+          conformidade?: number | null
+          cordialidade?: number | null
+          created_at?: string
+          feedback?: string | null
+          id?: string
+          model_used?: string | null
+          objetividade?: number | null
+          resolucao?: number | null
+          score_final?: number | null
+          scored_at?: string
+          ticket_id: string
+          user_id?: string | null
+          user_name?: string | null
+        }
+        Update: {
+          clareza?: number | null
+          conformidade?: number | null
+          cordialidade?: number | null
+          created_at?: string
+          feedback?: string | null
+          id?: string
+          model_used?: string | null
+          objetividade?: number | null
+          resolucao?: number | null
+          score_final?: number | null
+          scored_at?: string
+          ticket_id?: string
+          user_id?: string | null
+          user_name?: string | null
+        }
+        Relationships: []
+      }
       organizacoes: {
         Row: {
           created_at: string
