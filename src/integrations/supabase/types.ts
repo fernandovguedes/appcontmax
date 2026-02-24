@@ -22,14 +22,19 @@ export type Database = {
           data_baixa: string | null
           data_cadastro: string
           emite_nota_fiscal: boolean
+          external_key: string | null
+          external_source: string | null
+          hash_payload: string | null
           id: string
           meses: Json
           nome: string
           numero: number
           obrigacoes: Json
           organizacao_id: string
+          raw_payload: Json | null
           regime_tributario: string
           socios: Json
+          synced_at: string | null
           updated_at: string
           whatsapp: string | null
         }
@@ -40,14 +45,19 @@ export type Database = {
           data_baixa?: string | null
           data_cadastro?: string
           emite_nota_fiscal?: boolean
+          external_key?: string | null
+          external_source?: string | null
+          hash_payload?: string | null
           id?: string
           meses?: Json
           nome: string
           numero?: number
           obrigacoes?: Json
           organizacao_id: string
+          raw_payload?: Json | null
           regime_tributario?: string
           socios?: Json
+          synced_at?: string | null
           updated_at?: string
           whatsapp?: string | null
         }
@@ -58,14 +68,19 @@ export type Database = {
           data_baixa?: string | null
           data_cadastro?: string
           emite_nota_fiscal?: boolean
+          external_key?: string | null
+          external_source?: string | null
+          hash_payload?: string | null
           id?: string
           meses?: Json
           nome?: string
           numero?: number
           obrigacoes?: Json
           organizacao_id?: string
+          raw_payload?: Json | null
           regime_tributario?: string
           socios?: Json
+          synced_at?: string | null
           updated_at?: string
           whatsapp?: string | null
         }
@@ -200,18 +215,21 @@ export type Database = {
           id: string
           nome: string
           slug: string
+          updated_at: string
         }
         Insert: {
           created_at?: string
           id?: string
           nome: string
           slug: string
+          updated_at?: string
         }
         Update: {
           created_at?: string
           id?: string
           nome?: string
           slug?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -241,6 +259,138 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      sync_jobs: {
+        Row: {
+          created_by_user_id: string | null
+          entity: string
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          provider: string
+          started_at: string
+          status: string
+          tenant_id: string
+          total_created: number
+          total_errors: number
+          total_read: number
+          total_skipped: number
+          total_updated: number
+        }
+        Insert: {
+          created_by_user_id?: string | null
+          entity?: string
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          provider: string
+          started_at?: string
+          status?: string
+          tenant_id: string
+          total_created?: number
+          total_errors?: number
+          total_read?: number
+          total_skipped?: number
+          total_updated?: number
+        }
+        Update: {
+          created_by_user_id?: string | null
+          entity?: string
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          provider?: string
+          started_at?: string
+          status?: string
+          tenant_id?: string
+          total_created?: number
+          total_errors?: number
+          total_read?: number
+          total_skipped?: number
+          total_updated?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sync_logs: {
+        Row: {
+          created_at: string
+          id: string
+          level: string
+          message: string
+          payload: Json | null
+          sync_job_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          level?: string
+          message: string
+          payload?: Json | null
+          sync_job_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          level?: string
+          message?: string
+          payload?: Json | null
+          sync_job_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_logs_sync_job_id_fkey"
+            columns: ["sync_job_id"]
+            isOneToOne: false
+            referencedRelation: "sync_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_integrations: {
+        Row: {
+          base_url: string
+          created_at: string
+          id: string
+          is_enabled: boolean
+          provider: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          base_url?: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          provider: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          base_url?: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          provider?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_integrations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_modules: {
         Row: {
@@ -291,6 +441,38 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_tenants: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_tenants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_logs: {
         Row: {
@@ -367,6 +549,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_tenant_admin: {
+        Args: { _tenant_slug: string; _user_id: string }
         Returns: boolean
       }
     }
