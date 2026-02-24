@@ -116,7 +116,7 @@ serve(async (req) => {
     const eventId = insertedEvent.id;
     console.log("Evento salvo, id:", eventId);
 
-    // 2) Only process messages.create with valid IDs
+    // 2) Process messages.create — persist to onecode_messages_raw
     if (onecodeObject === "messages" && onecodeAction === "create" && messageId && ticketIdRaw) {
       const processPromise = (async () => {
         try {
@@ -163,6 +163,72 @@ serve(async (req) => {
         (globalThis as any).EdgeRuntime.waitUntil(processPromise);
       } else {
         processPromise.catch((e) => console.error("Background error:", e));
+      }
+    }
+
+    // 3) Process tickets.update — trigger scoring when ticket is closed
+    if (onecodeObject === "tickets" && onecodeAction === "update") {
+      const closedTicketId = String(payload?.id ?? payload?.ticketId ?? "");
+      const ticketStatus = String(payload?.status ?? "").toLowerCase();
+      console.log("Ticket update detected. TicketId:", closedTicketId, "Status:", ticketStatus);
+
+      if (["closed", "resolved"].includes(ticketStatus) && closedTicketId) {
+        // Check if already scored (idempotency)
+        const { data: existingScore } = await supabase
+          .from("onecode_ticket_scores")
+          .select("id")
+          .eq("ticket_id", closedTicketId)
+          .maybeSingle();
+
+        if (existingScore) {
+          console.log("Score already exists for ticket", closedTicketId, "— skipping");
+          await supabase
+            .from("onecode_webhook_events")
+            .update({ processed: true, error_message: null })
+            .eq("id", eventId);
+        } else {
+          console.log("Score triggered for ticket", closedTicketId);
+
+          const scorePromise = (async () => {
+            try {
+              const scoreUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/onecode-score-ticket`;
+              const res = await fetch(scoreUrl, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                },
+                body: JSON.stringify({ ticket_id: closedTicketId }),
+              });
+
+              const resBody = await res.text();
+              console.log("Score response:", res.status, resBody);
+
+              await supabase
+                .from("onecode_webhook_events")
+                .update({ processed: true, error_message: res.ok ? null : `Score failed: ${res.status}` })
+                .eq("id", eventId);
+            } catch (scoreErr: any) {
+              console.error("Score error:", scoreErr.message ?? String(scoreErr));
+              await supabase
+                .from("onecode_webhook_events")
+                .update({ processed: false, error_message: scoreErr.message ?? String(scoreErr) })
+                .eq("id", eventId);
+            }
+          })();
+
+          if (typeof (globalThis as any).EdgeRuntime?.waitUntil === "function") {
+            (globalThis as any).EdgeRuntime.waitUntil(scorePromise);
+          } else {
+            scorePromise.catch((e) => console.error("Background score error:", e));
+          }
+        }
+      } else {
+        console.log("Ticket not closed, ignoring. Status:", ticketStatus);
+        await supabase
+          .from("onecode_webhook_events")
+          .update({ processed: true, error_message: null })
+          .eq("id", eventId);
       }
     }
 
