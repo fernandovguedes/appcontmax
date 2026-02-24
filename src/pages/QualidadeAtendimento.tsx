@@ -19,9 +19,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Award, BarChart3, Star, Trophy, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 
 interface TicketScore {
@@ -37,12 +37,19 @@ interface TicketScore {
   score_final: number;
   feedback: string | null;
   scored_at: string;
+  organizacao_id: string;
 }
 
 interface UnscoredTicket {
   ticket_id: string;
   user_name: string | null;
   message_count: number;
+}
+
+interface Tenant {
+  id: string;
+  nome: string;
+  slug: string;
 }
 
 function getLastMonths(count: number) {
@@ -65,6 +72,7 @@ function scoreColor(score: number) {
 
 export default function QualidadeAtendimento() {
   const { user } = useAuth();
+  const { isAdmin } = useUserRole();
   const months = useMemo(() => getLastMonths(6), []);
   const [selectedMonth, setSelectedMonth] = useState(months[0].value);
   const [scores, setScores] = useState<TicketScore[]>([]);
@@ -72,10 +80,32 @@ export default function QualidadeAtendimento() {
   const [loading, setLoading] = useState(true);
   const [expandedTicket, setExpandedTicket] = useState<string | null>(null);
   const [scoringTicket, setScoringTicket] = useState<string | null>(null);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [selectedTenant, setSelectedTenant] = useState<string>("all");
 
   const userName = user?.user_metadata?.nome || user?.email?.split("@")[0] || "";
 
-  // Fetch scores for selected month
+  // Fetch user's tenants
+  useEffect(() => {
+    if (!user) return;
+    const fetchTenants = async () => {
+      if (isAdmin) {
+        const { data } = await supabase.from("organizacoes").select("id, nome, slug");
+        setTenants((data as Tenant[]) ?? []);
+      } else {
+        const { data } = await supabase
+          .from("user_tenants")
+          .select("tenant_id, organizacoes(id, nome, slug)")
+          .eq("user_id", user.id);
+        const t = (data ?? []).map((d: any) => d.organizacoes).filter(Boolean);
+        setTenants(t);
+        if (t.length === 1) setSelectedTenant(t[0].id);
+      }
+    };
+    fetchTenants();
+  }, [user, isAdmin]);
+
+  // Fetch scores for selected month + tenant
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -83,22 +113,33 @@ export default function QualidadeAtendimento() {
       const [y, m] = selectedMonth.split("-").map(Number);
       const endDate = new Date(y, m, 1).toISOString();
 
-      // Fetch scored tickets
-      const { data: scoreData } = await supabase
+      // Build score query
+      let scoreQuery = supabase
         .from("onecode_ticket_scores")
         .select("*")
         .gte("scored_at", startDate)
         .lt("scored_at", endDate)
         .order("score_final", { ascending: false });
 
+      if (selectedTenant !== "all") {
+        scoreQuery = scoreQuery.eq("organizacao_id", selectedTenant);
+      }
+
+      const { data: scoreData } = await scoreQuery;
       setScores((scoreData as TicketScore[]) ?? []);
 
-      // Fetch unscored tickets (messages in the month without scores)
-      const { data: rawMessages } = await supabase
+      // Build messages query for unscored tickets
+      let msgQuery = supabase
         .from("onecode_messages_raw")
-        .select("ticket_id, user_name")
+        .select("ticket_id, user_name, organizacao_id")
         .gte("created_at_onecode", startDate)
         .lt("created_at_onecode", endDate);
+
+      if (selectedTenant !== "all") {
+        msgQuery = msgQuery.eq("organizacao_id", selectedTenant);
+      }
+
+      const { data: rawMessages } = await msgQuery;
 
       const scoredTicketIds = new Set((scoreData ?? []).map((s: any) => s.ticket_id));
       const ticketMap = new Map<string, { user_name: string | null; count: number }>();
@@ -124,7 +165,7 @@ export default function QualidadeAtendimento() {
       setLoading(false);
     };
     fetchData();
-  }, [selectedMonth]);
+  }, [selectedMonth, selectedTenant]);
 
   // Ranking by attendant
   const ranking = useMemo(() => {
@@ -169,20 +210,23 @@ export default function QualidadeAtendimento() {
       if (data?.error) throw new Error(data.error);
 
       toast.success("Ticket avaliado com sucesso!");
-      // Refresh
-      setSelectedMonth((prev) => prev);
       // Force re-fetch
       const startDate = `${selectedMonth}-01T00:00:00Z`;
       const [y, m] = selectedMonth.split("-").map(Number);
       const endDate = new Date(y, m, 1).toISOString();
 
-      const { data: scoreData } = await supabase
+      let scoreQuery = supabase
         .from("onecode_ticket_scores")
         .select("*")
         .gte("scored_at", startDate)
         .lt("scored_at", endDate)
         .order("score_final", { ascending: false });
 
+      if (selectedTenant !== "all") {
+        scoreQuery = scoreQuery.eq("organizacao_id", selectedTenant);
+      }
+
+      const { data: scoreData } = await scoreQuery;
       setScores((scoreData as TicketScore[]) ?? []);
       setUnscoredTickets((prev) => prev.filter((t) => t.ticket_id !== ticketId));
     } catch (e: any) {
@@ -203,8 +247,8 @@ export default function QualidadeAtendimento() {
       />
 
       <main className="mx-auto max-w-7xl px-4 py-8 animate-slide-up space-y-8">
-        {/* Month selector */}
-        <div className="flex items-center gap-3">
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm font-medium text-muted-foreground">Período:</span>
           <Select value={selectedMonth} onValueChange={setSelectedMonth}>
             <SelectTrigger className="w-56">
@@ -218,6 +262,25 @@ export default function QualidadeAtendimento() {
               ))}
             </SelectContent>
           </Select>
+
+          {tenants.length > 1 && (
+            <>
+              <span className="text-sm font-medium text-muted-foreground ml-4">Organização:</span>
+              <Select value={selectedTenant} onValueChange={setSelectedTenant}>
+                <SelectTrigger className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {tenants.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
         </div>
 
         {loading ? (

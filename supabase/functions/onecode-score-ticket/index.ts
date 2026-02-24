@@ -58,10 +58,10 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Fetch messages for the ticket
+    // Fetch messages for the ticket (including organizacao_id)
     const { data: messages, error: msgError } = await supabase
       .from("onecode_messages_raw")
-      .select("from_me, body, created_at_onecode, user_id, user_name")
+      .select("from_me, body, created_at_onecode, user_id, user_name, organizacao_id")
       .eq("ticket_id", ticket_id)
       .order("created_at_onecode", { ascending: true });
 
@@ -72,6 +72,9 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Get organizacao_id from the first message
+    const organizacaoId = messages[0].organizacao_id;
 
     // Build transcript
     const attendantName = messages.find((m) => m.from_me)?.user_name || "Atendente";
@@ -84,7 +87,7 @@ serve(async (req) => {
 
     const attendantUserId = messages.find((m) => m.from_me)?.user_id || null;
 
-    // Call Lovable AI Gateway with tool calling for structured output
+    // Call Lovable AI Gateway
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
@@ -188,6 +191,7 @@ Considere: se o atendente não respondeu ou houve apenas mensagens do cliente, a
       score_final: Math.round(score_final * 10) / 10,
       feedback: evaluation.feedback,
       model_used: "google/gemini-3-flash-preview",
+      organizacao_id: organizacaoId,
     };
 
     const { data: inserted, error: insertError } = await supabase
