@@ -1,164 +1,66 @@
 
+# Corrigir Erros do Job Queue de Integracoes
 
-# Evolucao do Modulo Integracoes: Job Queue Assincrono
+## Problemas Identificados
 
-## Resumo
+### Problema 1: Worker nao consegue autenticar nas funcoes de sync
+O `process-integration-job` chama as funcoes de sync (sync-acessorias, sync-onecode-contacts, sync-bomcontrole) passando o `service_role_key` como Bearer token. Porem, essas funcoes validam o token como JWT de usuario (`getClaims` ou `getUser`), e o service role key nao e um JWT de usuario valido. Resultado: retorna "Unauthorized".
 
-Transformar o fluxo de execucao de integracoes de sincrono para assincrono, com fila de jobs, monitoramento em tempo real via Realtime, barra de progresso, e governanca multi-tenant.
+### Problema 2: Campo enviado errado para sync-acessorias
+O worker envia `{ tenant_id, org_slug }` mas o sync-acessorias espera `{ tenant_slug }` (campo diferente).
+
+### Problema 3: Toast de erro no duplo-clique (409)
+Ao clicar "Executar" duas vezes rapido, a segunda chamada retorna 409 (job ja existe). O `supabase.functions.invoke` trata qualquer non-2xx como erro, mostrando o toast "Erro ao criar job". Deveria mostrar uma mensagem informativa em vez de erro.
 
 ---
 
-## 1. Banco de Dados — Tabela `integration_jobs`
+## Solucao
 
-Criar tabela `integration_jobs` via migracao:
+### 1. Adicionar bypass de autenticacao para chamadas internas (service role)
 
+Nos 3 arquivos de sync, adicionar verificacao: se o Bearer token for o service role key, pular a validacao de JWT de usuario e prosseguir como chamada interna confiavel.
+
+**Arquivos:**
+- `supabase/functions/sync-acessorias/index.ts`
+- `supabase/functions/sync-onecode-contacts/index.ts`
+- `supabase/functions/sync-bomcontrole/index.ts`
+
+Logica adicionada antes da validacao de JWT:
 ```text
-Campos:
-- id (uuid, PK)
-- tenant_id (uuid, NOT NULL)
-- provider_slug (text, NOT NULL)
-- status (text, default 'pending') — pending | running | success | error | canceled
-- progress (integer, default 0) — 0 a 100
-- attempts (integer, default 0)
-- max_attempts (integer, default 3)
-- started_at (timestamptz)
-- finished_at (timestamptz)
-- execution_time_ms (integer)
-- error_message (text)
-- payload (jsonb, default '{}')
-- result (jsonb) — resposta da integracao
-- created_by (uuid) — user que disparou
-- created_at (timestamptz, default now())
+const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const token = authHeader.replace("Bearer ", "");
+const isInternalCall = (token === serviceRoleKey);
+
+if (!isInternalCall) {
+  // validacao JWT normal existente
+}
 ```
 
-Indices: `(tenant_id, provider_slug)`, `(status)`
+### 2. Corrigir campo tenant_slug no worker
 
-RLS: Admins podem ler/inserir/atualizar. Isolamento por tenant via policy.
+No `process-integration-job/index.ts`, quando o provider e "acessorias", enviar `tenant_slug` (que e o campo que sync-acessorias espera) em vez de `org_slug`.
 
-Habilitar Realtime na tabela para updates em tempo real no frontend.
+### 3. Tratar 409 no hook useIntegrationJobs
 
----
-
-## 2. Edge Function — `process-integration-job`
-
-Nova Edge Function que processa o proximo job pendente:
-
-```text
-Fluxo:
-1. Buscar proximo job com status = 'pending' (ORDER BY created_at ASC, LIMIT 1)
-2. Atualizar para status = 'running', started_at = now(), attempts++
-3. Verificar se integracao esta habilitada em tenant_integrations
-4. Delegar para a funcao especifica (sync-acessorias, sync-bomcontrole, sync-onecode-contacts)
-5. Em sucesso: status = 'success', finished_at, execution_time_ms, result
-6. Em erro: status = 'error', error_message, finished_at
-   - Se attempts < max_attempts: reverter para 'pending' (retry automatico)
-7. Atualizar tenant_integrations com last_run, last_status, last_error
-8. Registrar em integration_logs (manter compatibilidade)
-```
-
-Timeout de seguranca: se job fica 'running' por mais de 10 minutos sem update, marcar como 'error'.
+No `src/hooks/useIntegrationJobs.ts`, tratar a resposta 409 como informativa:
+- Em vez de mostrar toast de erro, mostrar toast informativo: "Ja existe uma execucao em andamento"
+- Retornar os dados do response (que contem o job_id existente)
 
 ---
 
-## 3. Refatorar `run-integration` Edge Function
+## Arquivos Modificados
 
-Simplificar para apenas criar o job e disparar o worker:
-
-```text
-Fluxo novo:
-1. Validar JWT e permissoes
-2. Verificar se integracao esta habilitada
-3. Verificar se ja nao existe job 'pending' ou 'running' para mesmo tenant+provider
-4. Criar registro em integration_jobs com status = 'pending'
-5. Disparar process-integration-job via fetch (fire-and-forget)
-6. Retornar { job_id } imediatamente ao frontend
-```
-
----
-
-## 4. Hook `useIntegrationJobs`
-
-Novo hook React para gerenciar jobs com Realtime:
-
-```text
-- Buscar jobs ativos (pending/running) para os tenants do usuario
-- Subscrever via Supabase Realtime para updates de status/progress
-- Expor: activeJobs, submitJob(), cancelJob()
-- submitJob() chama run-integration e retorna job_id
-```
-
----
-
-## 5. Frontend — Pagina Integracoes (`Integracoes.tsx`)
-
-Atualizar o card de integracao:
-
-```text
-- Botao "Executar" cria job via submitJob()
-- Se existe job ativo (pending/running):
-  - Badge amarelo "Processando..."
-  - Barra de progresso (componente Progress existente)
-  - Botao "Executar" desabilitado
-- Se ultimo job com erro:
-  - Badge vermelho "Falha"
-  - Link "Ver erro"
-- Se sucesso:
-  - Badge verde "Concluido"
-```
-
----
-
-## 6. Frontend — Pagina Detalhe (`IntegracaoDetalhe.tsx`)
-
-Adicionar aba "Execucoes Recentes" usando Tabs:
-
-```text
-Tab 1: "Visao Geral" (conteudo atual — metricas e grafico)
-Tab 2: "Execucoes" (tabela de jobs com colunas):
-  - Data
-  - Status (badge colorido)
-  - Progresso (barra)
-  - Tempo de execucao
-  - Tentativas
-  - Acao: Ver detalhes/erro
-
-Manter o grafico e metricas na tab Visao Geral.
-Botao "Executar Agora" com mesma logica de fila.
-Status em tempo real via Realtime subscription.
-```
-
----
-
-## 7. Governanca e Seguranca
-
-- RLS em integration_jobs: apenas admins leem, filtrado por tenant
-- Service role apenas nas Edge Functions
-- Payload/result nunca contem secrets
-- Jobs isolados por tenant — um tenant nao ve jobs de outro
-- Logs em integration_logs mantidos para auditoria
-
----
-
-## Arquivos Modificados/Criados
-
-| Arquivo | Acao |
-|---------|------|
-| Migracao SQL | Criar tabela integration_jobs + indices + RLS + Realtime |
-| `supabase/functions/process-integration-job/index.ts` | Novo — worker que processa jobs |
-| `supabase/functions/run-integration/index.ts` | Refatorar — criar job + disparar worker |
-| `supabase/config.toml` | Adicionar config do process-integration-job |
-| `src/hooks/useIntegrationJobs.ts` | Novo — hook com Realtime para jobs |
-| `src/hooks/useIntegrations.ts` | Atualizar runIntegration para usar fila |
-| `src/pages/Integracoes.tsx` | Adicionar status em tempo real + barra progresso |
-| `src/pages/IntegracaoDetalhe.tsx` | Adicionar aba Execucoes + Realtime |
-
----
+| Arquivo | Alteracao |
+|---------|----------|
+| `supabase/functions/sync-acessorias/index.ts` | Bypass de auth para service role key |
+| `supabase/functions/sync-onecode-contacts/index.ts` | Bypass de auth para service role key |
+| `supabase/functions/sync-bomcontrole/index.ts` | Verificar se precisa bypass (pode nao ter auth check) |
+| `supabase/functions/process-integration-job/index.ts` | Enviar `tenant_slug` em vez de `org_slug` |
+| `src/hooks/useIntegrationJobs.ts` | Tratar 409 como info, nao como erro |
 
 ## Ordem de Implementacao
 
-1. Migracao SQL (tabela + RLS + Realtime)
-2. Edge Function `process-integration-job`
-3. Refatorar `run-integration`
-4. Hook `useIntegrationJobs`
-5. Atualizar `Integracoes.tsx` e `IntegracaoDetalhe.tsx`
-
+1. Corrigir as 3 edge functions de sync (bypass interno)
+2. Corrigir o campo no worker
+3. Corrigir o hook do frontend
+4. Re-deploy das edge functions
