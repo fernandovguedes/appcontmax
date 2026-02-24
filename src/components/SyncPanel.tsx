@@ -8,7 +8,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { RefreshCw, Loader2, ChevronDown, ChevronUp, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { RefreshCw, Loader2, ChevronDown, ChevronUp, CheckCircle2, XCircle, Clock, Wifi } from "lucide-react";
 import { format, formatDistanceStrict } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -32,7 +32,7 @@ function duration(job: SyncJob) {
 }
 
 export function SyncPanel({ tenantSlug, tenantId, onSyncComplete }: SyncPanelProps) {
-  const { syncing, result, error, history, triggerSync } = useSyncAcessorias(tenantSlug, tenantId);
+  const { syncing, result, error, history, triggerSync, pingSync, pingResult, pinging, functionUrl } = useSyncAcessorias(tenantSlug, tenantId);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -56,6 +56,15 @@ export function SyncPanel({ tenantSlug, tenantId, onSyncComplete }: SyncPanelPro
             {syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
             {syncing ? "Sincronizando..." : "Sincronizar com Acessorias"}
           </Button>
+          <Button
+            onClick={pingSync}
+            disabled={pinging}
+            size="sm"
+            variant="outline"
+          >
+            {pinging ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wifi className="mr-2 h-4 w-4" />}
+            Ping
+          </Button>
           {lastSync && (
             <span className="text-xs text-muted-foreground">
               Última sync: {format(new Date(lastSync.started_at), "dd/MM HH:mm")}
@@ -73,8 +82,43 @@ export function SyncPanel({ tenantSlug, tenantId, onSyncComplete }: SyncPanelPro
             {result.total_errors > 0 && <span className="text-destructive">✕{result.total_errors}</span>}
           </div>
         )}
-        {error && <span className="text-xs text-destructive">{error}</span>}
       </div>
+
+      {/* Ping result */}
+      {pingResult && (
+        <div className="rounded-md border border-success/30 bg-success/5 p-2 text-xs space-y-1">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-3 w-3 text-success" />
+            <span className="font-medium text-success">Conectividade OK</span>
+          </div>
+          <div className="text-muted-foreground">
+            URL: <code className="bg-muted px-1 rounded text-[10px]">{pingResult.url}</code>
+          </div>
+          <div className="text-muted-foreground">
+            Timestamp: {pingResult.timestamp}
+          </div>
+        </div>
+      )}
+
+      {/* Error with details */}
+      {error && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs space-y-1">
+          <div className="flex items-center gap-2">
+            <XCircle className="h-3 w-3 text-destructive" />
+            <span className="font-medium text-destructive">
+              {error.status ? `Erro ${error.status}` : "Erro"}: {error.message}
+            </span>
+          </div>
+          {error.detail && (
+            <div className="text-muted-foreground">
+              Detalhe: {error.detail}
+            </div>
+          )}
+          <div className="text-muted-foreground">
+            URL: <code className="bg-muted px-1 rounded text-[10px]">{functionUrl}</code>
+          </div>
+        </div>
+      )}
 
       {history.length > 0 && (
         <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
