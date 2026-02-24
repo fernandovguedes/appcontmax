@@ -255,23 +255,29 @@ Deno.serve(async (req) => {
       );
     }
 
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized", detail: `JWT validation failed: ${claimsError?.message || "invalid token"}` }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const isInternalCall = token === supabaseServiceKey;
+
+    let userId = "system";
+
+    if (!isInternalCall) {
+      const userClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+
+      const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
+      if (claimsError || !claimsData?.claims) {
+        return new Response(
+          JSON.stringify({ error: "Unauthorized", detail: `JWT validation failed: ${claimsError?.message || "invalid token"}` }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      userId = claimsData.claims.sub as string;
     }
-    const userId = claimsData.claims.sub as string;
 
     const body = await req.json();
     const tenantSlug = body.tenant_slug;
-    console.log(`[sync-acessorias] POST sync request - tenant_slug: ${tenantSlug}, userId: ${userId}`);
+    console.log(`[sync-acessorias] POST sync request - tenant_slug: ${tenantSlug}, userId: ${userId}, internal: ${isInternalCall}`);
 
     if (!tenantSlug || !["contmax", "pg"].includes(tenantSlug)) {
       return new Response(
@@ -282,15 +288,17 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { data: isAdmin } = await supabase.rpc("is_tenant_admin", {
-      _user_id: userId,
-      _tenant_slug: tenantSlug,
-    });
-    if (!isAdmin) {
-      return new Response(
-        JSON.stringify({ error: "Forbidden", detail: `User is not admin for tenant '${tenantSlug}'.` }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (!isInternalCall) {
+      const { data: isAdmin } = await supabase.rpc("is_tenant_admin", {
+        _user_id: userId,
+        _tenant_slug: tenantSlug,
+      });
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ error: "Forbidden", detail: `User is not admin for tenant '${tenantSlug}'.` }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     const { data: tenant } = await supabase.from("organizacoes").select("id").eq("slug", tenantSlug).single();

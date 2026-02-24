@@ -127,7 +127,15 @@ export function useIntegrationJobs(tenantIds?: string[]) {
         body: { tenant_id: tenantId, provider_slug: providerSlug },
       });
 
-      if (error) throw error;
+      // supabase.functions.invoke returns error for non-2xx, but 409 is informational
+      if (error) {
+        // Check if response contains job_id (409 case)
+        if (data?.job_id) {
+          toast({ title: "Execução em andamento", description: "Já existe uma execução em andamento para esta integração." });
+          return data;
+        }
+        throw error;
+      }
 
       toast({ title: "Job criado", description: `Integração ${providerSlug} adicionada à fila.` });
       return data;

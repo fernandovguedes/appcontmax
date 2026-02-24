@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
           .select("slug")
           .eq("id", job.tenant_id)
           .single();
-        if (org) fnBody.org_slug = org.slug;
+        if (org) fnBody.tenant_slug = org.slug;
       }
 
       const resp = await fetch(fnUrl, {
