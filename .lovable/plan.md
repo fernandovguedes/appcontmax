@@ -1,14 +1,17 @@
 
 
-## Mostrar apenas a ultima sincronizacao no historico
+## Atualizar tokens do Acessorias
 
-Alteracao simples: limitar o historico de sincronizacoes para exibir apenas o registro mais recente, em vez dos 10 ultimos.
+Atualizar os dois segredos de backend com os valores fornecidos:
 
-### Arquivo alterado
-
-| Arquivo | Alteracao |
+| Segredo | Novo valor |
 |---|---|
-| `src/hooks/useSyncAcessorias.ts` | Mudar `.limit(10)` para `.limit(1)` na query de `fetchHistory` (linha 46) |
+| `ACESSORIAS_TOKEN_CONTMAX` | `c0c7dbf5c8256db5cd3a5da7b4d42763` |
+| `ACESSORIAS_TOKEN_PG` | `d00ac97b1d99ebfbb32749eb8068e2e4` |
 
-Com isso, a secao "Historico de Sincronizacoes" continuara funcionando normalmente, mas mostrara apenas a ultima sincronizacao realizada.
+Apos a atualizacao, os tokens serao diferentes entre si, resolvendo o problema de ambos os tenants retornarem os mesmos 1860 registros.
+
+### Proximo passo recomendado
+
+Depois de atualizar, rodar uma sincronizacao manual em cada tenant para confirmar que os numeros de empresas lidas sao diferentes.
 
