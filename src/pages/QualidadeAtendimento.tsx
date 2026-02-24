@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Award, BarChart3, Star, Trophy, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { WebhookErrorsPanel } from "@/components/WebhookErrorsPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
@@ -473,6 +474,9 @@ export default function QualidadeAtendimento() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Webhook Errors Panel - admin only */}
+            {isAdmin && <WebhookErrorsPanel />}
 
             {scores.length === 0 && unscoredTickets.length === 0 && (
               <div className="text-center py-20">
