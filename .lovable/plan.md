@@ -1,62 +1,47 @@
 
 
-## UI de Sincronizacao Acessorias - Dentro dos Modulos Clientes
+## Corrigir Paginacao da Edge Function sync-acessorias
 
-### Objetivo
-Adicionar um painel de sincronizacao com a API do Acessorias dentro de cada pagina de Clientes (P&G e Contmax), permitindo que admins disparem a sync e acompanhem o historico diretamente na interface.
+### Problema
+A logica atual (linhas 326-335) assume page size de 50 registros. Como a API do Acessorias retorna ~20 por pagina, a condicao `companies.length < 50` e verdadeira na primeira pagina, encerrando a sync prematuramente com apenas 20 registros lidos.
 
-### Componentes a Criar
+### Solucao
+Substituir o bloco de verificacao de fim de paginacao (linhas 326-335) por uma logica robusta:
 
-**1. `src/components/SyncPanel.tsx`**
-Componente reutilizavel que recebe o `tenantSlug` como prop. Contem:
-- Botao "Sincronizar com Acessorias" (visivel apenas para admins)
-- Indicador de progresso durante a execucao (spinner + texto "Sincronizando...")
-- Ao concluir, exibe um resumo inline: criados, atualizados, ignorados, erros
-- Tabela colapsavel com o historico das ultimas 10 sync_jobs do tenant
-  - Colunas: Data, Status (badge colorido), Lidos, Criados, Atualizados, Ignorados, Erros, Duracao
-- Dialog de confirmacao antes de iniciar a sync
-
-**2. `src/hooks/useSyncAcessorias.ts`**
-Hook que encapsula:
-- `triggerSync(tenantSlug)`: chama a edge function via `supabase.functions.invoke('sync-acessorias', { body: { tenant_slug } })`
-- Estado: `syncing`, `result`, `error`
-- `fetchHistory(tenantId)`: busca os ultimos sync_jobs do tenant
-- `history`: array de jobs com status e contadores
-
-### Integracao na Pagina Clientes
-
-No `src/pages/Clientes.tsx`:
-- Importar e renderizar `<SyncPanel tenantSlug={orgSlug} tenantId={orgInfo.id} />` logo acima da tabela de empresas (dentro do `<main>`)
-- Apos sync bem-sucedida, chamar `refetch()` do `useEmpresas` para atualizar a lista
-- O painel so aparece para usuarios com `canEdit` (admins do tenant)
+1. Se o payload contiver `totalPages` ou `total_pages`, usar como limite superior
+2. Caso contrario, incrementar `page++` e continuar -- a unica condicao de parada sera `companies.length === 0` (ja tratada nas linhas 221-224)
+3. Adicionar log informativo registrando a pagina processada e quantidade de registros
 
 ### Detalhes Tecnicos
 
-```text
-+-----------------------------------------------+
-|  [Sincronizar com Acessorias]   Ultima sync:   |
-|                                  24/02 14:30   |
-+-----------------------------------------------+
-| Historico de Sincronizacoes        [Expandir v] |
-|  Data       | Status | Lidos | +  | ~  | Erros |
-|  24/02 14h  | OK     |   20  | 0  | 0  |   0   |
-|  23/02 10h  | OK     |   20  | 3  | 1  |   0   |
-+-----------------------------------------------+
+**Arquivo**: `supabase/functions/sync-acessorias/index.ts`
+
+O bloco atual (linhas 326-335):
+```typescript
+// Check pagination end
+const totalPages = data?.totalPages || data?.total_pages;
+if (totalPages && page >= totalPages) {
+  hasMore = false;
+} else if (companies.length < 50) {
+  // Assume page size ~50; if less returned, no more pages
+  hasMore = false;
+} else {
+  page++;
+}
 ```
 
-- O botao fica desabilitado durante a sync com um `Loader2` animado
-- Status badges: `success` = verde, `failed` = vermelho, `running` = amarelo
-- A chamada `supabase.functions.invoke` envia automaticamente o token JWT do usuario logado
-- Apos sync concluida, o hook refaz a query de historico e o componente pai refaz `refetch()` das empresas
+Sera substituido por:
+```typescript
+// Check pagination end
+const totalPages = data?.totalPages || data?.total_pages;
+if (totalPages && page >= totalPages) {
+  hasMore = false;
+} else {
+  page++;
+}
+```
 
-### Arquivos Modificados
-| Arquivo | Acao |
-|---------|------|
-| `src/hooks/useSyncAcessorias.ts` | Criar (hook de sync + historico) |
-| `src/components/SyncPanel.tsx` | Criar (UI do painel) |
-| `src/pages/Clientes.tsx` | Modificar (adicionar SyncPanel) |
+A logica de `companies.length === 0` nas linhas 221-224 ja cobre o caso de fim de dados. O throttle de 750ms entre requisicoes permanece inalterado.
 
-### Permissoes
-- Leitura de `sync_jobs` ja esta protegida por RLS (somente admins)
-- A edge function ja valida JWT + `is_tenant_admin`
-- Nenhuma alteracao de banco necessaria
+Apos a alteracao, sera feito deploy e teste com `tenant_slug: 'contmax'` para validar que todas as paginas sao percorridas.
+
