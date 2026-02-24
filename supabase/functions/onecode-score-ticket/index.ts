@@ -93,8 +93,9 @@ serve(async (req) => {
     }
 
     // Build transcript
-    const attendantName = messages.find((m) => m.from_me)?.user_name || "Atendente";
-    const attendantUserId = messages.find((m) => m.from_me)?.user_id || null;
+    const humanMsg = messages.find((m) => m.from_me && m.user_id);
+    const attendantName = humanMsg?.user_name || "Atendente";
+    const attendantUserId = humanMsg?.user_id || null;
     const transcript = messages
       .map((m) => {
         const role = m.from_me ? `ATENDENTE (${attendantName})` : "CLIENTE";
