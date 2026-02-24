@@ -93,6 +93,34 @@ serve(async (req) => {
       });
     }
 
+    // No human attendant — skip scoring for bot-only tickets
+    const humanMessages = messages?.filter((m: any) => m.from_me && m.user_id);
+    if (!humanMessages || humanMessages.length === 0) {
+      console.log("Bot-only ticket detected, skipping scoring:", ticket_id);
+      const botRow = {
+        ticket_id: String(ticket_id),
+        user_id: null,
+        user_name: null,
+        score_final: null,
+        feedback: "Ticket sem interação de atendente humano — ignorado.",
+        model_used: "skipped",
+        organizacao_id: organizacaoId || "00000000-0000-0000-0000-000000000000",
+      };
+      const { data: saved, error: saveErr } = await supabase
+        .from("onecode_ticket_scores")
+        .upsert(botRow, { onConflict: "ticket_id" })
+        .select()
+        .single();
+      if (saveErr) throw new Error(saveErr.message);
+      return jsonResp({
+        ok: true,
+        score: saved,
+        skipped: true,
+        reason: "bot_only",
+        elapsed_ms: Date.now() - t0,
+      });
+    }
+
     // Not enough messages — save null score with reason
     if (!messages || messages.length < 2) {
       console.log("Insufficient messages:", messages?.length ?? 0);
