@@ -120,7 +120,8 @@ export default function QualidadeAtendimento() {
         .select("*")
         .gte("scored_at", startDate)
         .lt("scored_at", endDate)
-        .order("score_final", { ascending: false });
+        .order("score_final", { ascending: false })
+        .not("score_final", "is", null);
 
       if (selectedTenant !== "all") {
         scoreQuery = scoreQuery.eq("organizacao_id", selectedTenant);
@@ -222,7 +223,8 @@ export default function QualidadeAtendimento() {
         .select("*")
         .gte("scored_at", startDate)
         .lt("scored_at", endDate)
-        .order("score_final", { ascending: false });
+        .order("score_final", { ascending: false })
+        .not("score_final", "is", null);
 
       if (selectedTenant !== "all") {
         scoreQuery = scoreQuery.eq("organizacao_id", selectedTenant);
