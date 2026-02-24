@@ -1,142 +1,213 @@
 
-# Aviso de Duplicidade no Envio de WhatsApp
+
+# Evolucao Multi-Tenant + Integracao Acessorias
 
 ## Resumo
 
-Implementar deteccao de envios anteriores por competencia (mes/ano) e tipo de mensagem, exibindo alerta visual na tabela e exigindo confirmacao extra com checkbox ao reenviar.
+Evoluir a tabela `organizacoes` existente para funcionar como entidade de tenants, adicionar infraestrutura de integracoes por tenant, relacionamento usuario-tenant com roles, campos de sincronizacao na tabela `empresas`, tabelas de auditoria de sync, e edge function para sincronizar empresas via API Acessorias. Nenhum dado existente sera alterado ou removido.
 
-## Alteracoes
+---
 
-### 1. Migracao: novos campos em `whatsapp_logs`
+## Fase 1: Migracao de Schema (nao destrutiva)
 
-Adicionar colunas na tabela existente:
+### 1.1 Evoluir `organizacoes` como tenants
+
+Adicionar coluna `updated_at` na tabela existente:
 
 ```sql
-ALTER TABLE public.whatsapp_logs
-  ADD COLUMN competencia text,
-  ADD COLUMN message_type text DEFAULT 'extrato_nao_enviado',
-  ADD COLUMN is_resend boolean DEFAULT false,
-  ADD COLUMN resend_reason text;
+ALTER TABLE public.organizacoes
+  ADD COLUMN updated_at timestamptz NOT NULL DEFAULT now();
 ```
 
-- `competencia`: formato "YYYY-MM" (ex: "2026-01" para Janeiro/2026)
-- `message_type`: tipo da mensagem, default "extrato_nao_enviado"
-- `is_resend`: indica se foi um reenvio consciente
-- `resend_reason`: motivo opcional do reenvio
+### 1.2 Criar `tenant_integrations`
 
-### 2. Funcao utilitaria: `getCompetenciaAtual()`
+Nova tabela para armazenar configuracao de integracao por tenant/provider. O `access_token` sera armazenado como secret no backend (via Supabase Secrets), nao nesta tabela. A tabela guarda apenas metadados de configuracao.
 
-Criar em `src/lib/formatUtils.ts`:
+Campos:
+- `id` (uuid, PK)
+- `tenant_id` (FK organizacoes)
+- `provider` (text, ex: "acessorias")
+- `base_url` (text, default "https://api.acessorias.com")
+- `is_enabled` (boolean, default true)
+- `created_at`, `updated_at`
 
-```typescript
-const MES_INDEX: Record<MesKey, number> = {
-  janeiro: 1, fevereiro: 2, marco: 3,
-  abril: 4, maio: 5, junho: 6,
-  julho: 7, agosto: 8, setembro: 9,
-  outubro: 10, novembro: 11, dezembro: 12,
-};
+Indice unico: `(tenant_id, provider)`
 
-export function getCompetenciaAtual(mesSelecionado: MesKey): string {
-  const mes = MES_INDEX[mesSelecionado];
-  return `2026-${String(mes).padStart(2, "0")}`;
-}
+RLS: somente admins podem ler/escrever.
+
+### 1.3 Criar `user_tenants`
+
+Nova tabela de relacionamento usuario-tenant com role por tenant.
+
+Campos:
+- `id` (uuid, PK)
+- `user_id` (uuid, NOT NULL)
+- `tenant_id` (FK organizacoes)
+- `role` (text, default "staff") -- valores: admin, manager, staff, readonly
+- `created_at`
+
+Indice unico: `(user_id, tenant_id)`
+
+RLS: admins globais podem gerenciar; usuarios podem ler seus proprios registros.
+
+**Dados iniciais**: Popular `user_tenants` para usuarios existentes com base nos modulos que ja possuem acesso (inferido de `user_modules` + `modules.organizacao_id`). Admins globais recebem role "admin" em ambos tenants.
+
+### 1.4 Adicionar colunas de sync em `empresas`
+
+Adicionar colunas sem alterar dados existentes:
+
+```sql
+ALTER TABLE public.empresas
+  ADD COLUMN external_source text,
+  ADD COLUMN external_key text,
+  ADD COLUMN raw_payload jsonb,
+  ADD COLUMN hash_payload text,
+  ADD COLUMN synced_at timestamptz;
 ```
 
-Usa o ano fixo 2026 (consistente com o resto do sistema).
+Indice: `CREATE INDEX idx_empresas_tenant_cnpj ON empresas(organizacao_id, cnpj);`
 
-### 3. Hook: `useWhatsAppLogs()`
+Indice unico parcial para evitar duplicidade por tenant: `CREATE UNIQUE INDEX idx_empresas_tenant_cnpj_unique ON empresas(organizacao_id, cnpj) WHERE cnpj IS NOT NULL AND cnpj != '';`
 
-Criar `src/hooks/useWhatsAppLogs.ts`:
+### 1.5 Criar `sync_jobs`
 
-- Recebe `competencia: string`
-- Consulta `whatsapp_logs` filtrando por `competencia`, `message_type = "extrato_nao_enviado"` e `status = "success"`
-- Faz join com `profiles` para obter o nome do usuario que enviou
-- Retorna um `Map<string, { sentAt: string; sentBy: string }>` indexado por `empresa_id`
-- Usa `useQuery` do TanStack para cache e revalidacao
-- Revalida apos cada envio (individual ou lote)
+Tabela de auditoria de execucoes de sincronizacao.
 
-### 4. Edge Functions: gravar competencia e message_type
+Campos:
+- `id` (uuid, PK)
+- `tenant_id` (FK organizacoes)
+- `provider` (text, ex: "acessorias")
+- `entity` (text, ex: "companies")
+- `status` (text: "running", "success", "failed")
+- `total_read` (int, default 0)
+- `total_created` (int, default 0)
+- `total_updated` (int, default 0)
+- `total_skipped` (int, default 0)
+- `total_errors` (int, default 0)
+- `started_at` (timestamptz)
+- `finished_at` (timestamptz)
+- `created_by_user_id` (uuid, nullable)
+- `error_message` (text, nullable)
 
-**`send-whatsapp/index.ts`**:
-- Aceitar campos opcionais `competencia`, `message_type`, `is_resend`, `resend_reason` no body
-- Gravar esses campos no insert de `whatsapp_logs`
+RLS: admins podem ler/inserir/atualizar.
 
-**`send-whatsapp-batch/index.ts`**:
-- Aceitar `competencia`, `message_type` no body (nivel raiz)
-- Aceitar `is_resend` e `resend_reason` por item (cada empresa pode ter status diferente de reenvio)
-- Gravar no insert de cada log
+### 1.6 Criar `sync_logs`
 
-### 5. Alteracao: `EmpresaTable.tsx`
+Tabela de logs detalhados por sync_job.
 
-Adicionar prop `whatsappLogs?: Map<string, { sentAt: string; sentBy: string }>`.
+Campos:
+- `id` (uuid, PK)
+- `sync_job_id` (FK sync_jobs)
+- `level` (text: "info", "warning", "error")
+- `message` (text)
+- `payload` (jsonb)
+- `created_at` (timestamptz)
 
-Na coluna de acoes, ao renderizar o botao de WhatsApp:
-- Se `empresa.id` existe no Map de logs (ja enviado nesta competencia):
-  - Botao com icone `AlertTriangle` em amarelo/laranja
-  - Label interna ou tooltip: "Enviado em {data} por {usuario}"
-  - `onClick` chama `onSendWhatsApp` com flag `isResend: true`
-- Se nao existe no Map: comportamento atual (botao verde normal)
+RLS: admins podem ler.
 
-### 6. Alteracao: `WhatsAppConfirmDialog.tsx`
+---
 
-Adicionar props opcionais:
-- `isResend?: boolean`
-- `sentInfo?: { sentAt: string; sentBy: string }`
+## Fase 2: Secrets para tokens Acessorias
 
-Quando `isResend` for true:
-- Exibir alerta amarelo na Etapa 1: "Mensagem ja enviada em {data} por {usuario}"
-- Adicionar Etapa 2.5 (antes do envio): checkbox obrigatorio "Entendo que pode gerar mensagem duplicada"
-- Campo opcional de texto para `resend_reason`
-- Passar `is_resend` e `resend_reason` no body da chamada ao edge function
+Armazenar os tokens da API Acessorias como secrets do projeto:
 
-### 7. Alteracao: `WhatsAppBatchConfirmDialog.tsx`
+- `ACESSORIAS_TOKEN_CONTMAX` -- token do escritorio Contmax
+- `ACESSORIAS_TOKEN_PG` -- token do escritorio P&G
 
-Receber `whatsappLogs` Map como prop.
+A edge function usara o `tenant_slug` para determinar qual secret carregar. Os tokens nunca sao expostos ao frontend.
 
-Na Etapa 1 (lista de destinatarios):
-- Marcar com icone de alerta as empresas que ja receberam mensagem nesta competencia
-- Exibir contagem: "X empresas ja receberam mensagem neste mes"
+---
 
-Na Etapa 2 (confirmacao):
-- Se houver empresas com envio anterior, exibir checkbox obrigatorio "Entendo que pode gerar mensagens duplicadas para X empresa(s)"
-- Campo opcional de texto para `resend_reason`
-- Enviar `is_resend: true` para itens que sao reenvio e `is_resend: false` para novos
+## Fase 3: Edge Function `sync-acessorias`
 
-### 8. Alteracao: `Index.tsx`
+Criar `supabase/functions/sync-acessorias/index.ts`:
 
-- Importar `useWhatsAppLogs` e `getCompetenciaAtual`
-- Computar `competencia` a partir de `mesSelecionado`
-- Chamar `useWhatsAppLogs(competencia)` para obter o Map de logs
-- Passar `whatsappLogs` para `EmpresaTable` e `WhatsAppBatchConfirmDialog`
-- Atualizar handlers de envio individual e lote para incluir `competencia` e `message_type` no body
-- Invalidar query de logs apos envio bem-sucedido
+### Fluxo
 
-## Fluxo de Reenvio Individual
+1. Receber `POST` com body `{ tenant_slug: "contmax" | "pg" }`
+2. Validar JWT e verificar se o usuario e admin global ou admin do tenant
+3. Resolver tenant_id a partir do slug
+4. Carregar token do secret correspondente (`ACESSORIAS_TOKEN_CONTMAX` ou `ACESSORIAS_TOKEN_PG`)
+5. Criar registro em `sync_jobs` com status "running"
+6. Paginar `GET /companies/ListAll?page={n}` com throttling (max 80 req/min para margem de seguranca)
+7. Para cada empresa retornada:
+   - Extrair chave (CNPJ ou CPF)
+   - Calcular `hash_payload` (SHA-256 do JSON normalizado)
+   - Buscar na tabela `empresas` por `(organizacao_id, cnpj)`
+   - Se nao existe: INSERT com campos mapeados + `external_source="acessorias"`, `raw_payload`, `hash_payload`, `synced_at`
+   - Se existe e hash mudou: UPDATE campos + `raw_payload`, `hash_payload`, `synced_at`
+   - Se existe e hash igual: skip (incrementar `total_skipped`)
+   - Registrar `sync_logs` para erros/avisos
+8. Atualizar `sync_jobs` com contadores e status final
+9. Retornar resumo
 
-```text
-1. Tabela mostra botao amarelo com icone de alerta para empresa ja notificada
-2. Tooltip: "Enviado em 24/02/2026 por Maria"
-3. Clique abre WhatsAppConfirmDialog com isResend=true
-4. Etapa 1: alerta "Mensagem ja enviada em..."
-5. Etapa 2: preview da mensagem
-6. Etapa 3: checkbox "Entendo que pode gerar duplicata" + motivo opcional
-7. Envio com is_resend=true e resend_reason gravados no log
+### Throttling
+
+Implementar rate limiter simples: contador de requests por minuto, com `await` de 700ms entre cada request para garantir no maximo ~85 req/min (abaixo do limite de 100).
+
+### Mapeamento de campos
+
+A edge function mapeara os campos da API Acessorias para a estrutura existente de `empresas`:
+- `cnpj` -> `cnpj`
+- `razaoSocial` ou equivalente -> `nome`
+- Demais campos -> `raw_payload` (JSON completo)
+- `regime_tributario` -> default "simples_nacional" se nao informado
+- `emite_nota_fiscal` -> default true
+- `meses` -> `{}` (vazio, sem dados de faturamento)
+- `obrigacoes` -> `{}` (vazio)
+
+### Configuracao
+
+```toml
+[functions.sync-acessorias]
+verify_jwt = false
 ```
 
-## Fluxo de Reenvio em Lote
+---
 
-```text
-1. Selecionar empresas (mix de novas e ja notificadas)
-2. Barra de acoes mostra contagem total
-3. Dialog Etapa 1: lista com icone de alerta nas ja notificadas
-4. Dialog Etapa 2: se houver reenvios, checkbox obrigatorio + motivo
-5. Envio com is_resend individual por empresa no log
-```
+## Fase 4: Populacao inicial de `user_tenants`
+
+Script de migracao (INSERT) para popular `user_tenants` com dados derivados:
+
+- Para cada admin global (`user_roles.role = 'admin'`): inserir com role "admin" em ambos tenants
+- Para cada usuario nao-admin com modulos atribuidos: inferir tenant pelo `modules.organizacao_id` do modulo e inserir com role "staff"
+
+Isso sera feito via INSERT tool (dados, nao schema).
+
+---
+
+## Resumo de Arquivos
+
+### Novos
+- `supabase/functions/sync-acessorias/index.ts` -- edge function de sincronizacao
+
+### Migracoes (schema)
+- Uma migracao SQL com:
+  - ALTER TABLE organizacoes (add updated_at)
+  - CREATE TABLE tenant_integrations
+  - CREATE TABLE user_tenants
+  - ALTER TABLE empresas (add sync columns + indices)
+  - CREATE TABLE sync_jobs
+  - CREATE TABLE sync_logs
+  - RLS policies para todas as novas tabelas
+  - RLS policy para tenant_integrations
+
+### Configuracao
+- `supabase/config.toml` -- adicionar entrada para sync-acessorias
+- Secrets: `ACESSORIAS_TOKEN_CONTMAX` e `ACESSORIAS_TOKEN_PG`
+
+### Nao alterados
+- Nenhum arquivo de frontend sera modificado
+- Nenhuma tabela existente tera dados removidos ou sobrescritos
+- A tabela `empresas` mantera todas as colunas e dados atuais
+
+---
 
 ## Detalhes Tecnicos
 
-- A consulta de logs usa RLS existente (SELECT permitido para autenticados)
-- O hook `useWhatsAppLogs` agrupa por `empresa_id` e pega o registro mais recente (ordenado por `created_at DESC`)
-- O join com `profiles` usa `user_id` para mostrar o nome do remetente
-- A invalidacao da query apos envio garante que a tabela atualiza imediatamente o estado visual do botao
-- Os campos `competencia` e `message_type` sao opcionais nas edge functions para manter retrocompatibilidade com logs antigos
+- A tabela `tenant_integrations` nao armazena tokens diretamente; usa Supabase Secrets. O campo `base_url` permite configurar URLs diferentes por tenant se necessario no futuro.
+- O indice unico parcial em `(organizacao_id, cnpj)` previne duplicidade de empresas por tenant, mas ignora registros sem CNPJ.
+- A edge function usa service_role para INSERT/UPDATE em `empresas`, `sync_jobs` e `sync_logs`, mas valida autorizacao do chamador via JWT.
+- O throttling e implementado com um sleep simples entre requests, nao com um token bucket complexo, para manter a simplicidade.
+- Os campos `external_source`, `external_key`, `raw_payload`, `hash_payload` e `synced_at` sao todos nullable, permitindo que empresas cadastradas manualmente continuem funcionando sem esses campos preenchidos.
+
