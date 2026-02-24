@@ -20,7 +20,7 @@ serve(async (req) => {
   }
 
   try {
-    // Validate JWT
+    // Validate auth - accept both user JWT and service_role key
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -29,19 +29,24 @@ serve(async (req) => {
       });
     }
 
-    const anonClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await anonClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const isServiceRole = token === serviceRoleKey;
+
+    if (!isServiceRole) {
+      // Validate as user JWT
+      const anonClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } }
+      );
+      const { data: claimsData, error: claimsError } = await anonClient.auth.getClaims(token);
+      if (claimsError || !claimsData?.claims) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const { ticket_id } = await req.json();
@@ -196,7 +201,7 @@ Considere: se o atendente não respondeu ou houve apenas mensagens do cliente, a
 
     const { data: inserted, error: insertError } = await supabase
       .from("onecode_ticket_scores")
-      .insert(scoreRow)
+      .upsert(scoreRow, { onConflict: "ticket_id", ignoreDuplicates: true })
       .select()
       .single();
 
