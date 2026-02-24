@@ -1,45 +1,60 @@
 
 
-## Implementar filtro de grupos no scoring OneCode
+## Descartar tickets sem atendente humano no scoring
 
-### Etapas
+### Problema
 
-#### 1. Migration no banco de dados
-Adicionar coluna `is_group` (boolean, default false) na tabela `onecode_messages_raw` e preencher retroativamente com base no payload JSON existente.
+Tickets como o 26451 e 26449 contêm apenas mensagens de bot (menu automatico, triagem). A IA avalia esses tickets com nota maxima (100), inflando a media geral dos atendentes. Atualmente existem pelo menos 2 tickets assim no banco.
 
-#### 2. Webhook: salvar is_group
-No `onecode-webhook/index.ts`, extrair `ticket.isGroup` do payload e incluir no upsert da `onecode_messages_raw`.
+### Como detectar
 
-#### 3. Scoring: ignorar grupos
-No `onecode-score-ticket/index.ts`, incluir `is_group` no select e, se qualquer mensagem do ticket for de grupo, salvar score nulo com motivo `group_ticket` sem gastar creditos de IA.
+O indicador e simples: mensagens enviadas pela empresa (`from_me = true`) que tem `user_id = NULL` sao mensagens de bot. Se **nenhuma** mensagem `from_me` do ticket possui `user_id` preenchido, nao houve interacao humana.
 
-#### 4. Deploy das edge functions
+### Solucao
+
+Adicionar uma verificacao no `onecode-score-ticket/index.ts`, logo apos a checagem de grupo e antes da checagem de mensagens insuficientes:
+
+```text
+// Apos checar is_group...
+// Checar se tem atendente humano
+const humanMessages = messages?.filter(m => m.from_me && m.user_id);
+if (!humanMessages || humanMessages.length === 0) {
+  // Nenhum atendente humano — salvar score nulo e retornar
+  // reason: "bot_only"
+  // feedback: "Ticket sem interacao de atendente humano — ignorado."
+  // model_used: "skipped"
+}
+```
+
+### O que acontece
+
+1. Busca as mensagens do ticket (ja existente)
+2. Verifica se e grupo (ja existente)
+3. **NOVO**: Verifica se alguma mensagem `from_me` tem `user_id` preenchido
+4. Se nao tem, salva score nulo com `reason: "bot_only"` e `model_used: "skipped"`, sem chamar a IA
+5. Se tem, segue o fluxo normal de avaliacao
+
+### Correcao retroativa
+
+Os tickets 26451 e 26449 ja foram pontuados com nota 100. Sera necessario re-pontua-los (ou atualizar diretamente no banco) para que fiquem com score nulo e `model_used: "skipped"`.
+
+```text
+UPDATE onecode_ticket_scores
+SET score_final = NULL,
+    clareza = NULL, cordialidade = NULL, objetividade = NULL,
+    resolucao = NULL, conformidade = NULL,
+    feedback = 'Ticket sem interacao de atendente humano — ignorado.',
+    model_used = 'skipped',
+    pontos_fortes = '{}',
+    pontos_melhoria = '{}'
+WHERE user_id IS NULL AND model_used != 'skipped';
+```
 
 ### Detalhes tecnicos
 
-**Migration SQL:**
-```text
-ALTER TABLE public.onecode_messages_raw 
-  ADD COLUMN is_group boolean NOT NULL DEFAULT false;
+**Arquivo editado:** `supabase/functions/onecode-score-ticket/index.ts`
 
-UPDATE public.onecode_messages_raw
-SET is_group = COALESCE(
-  (payload_json->'data'->'payload'->'ticket'->>'isGroup')::boolean,
-  false
-)
-WHERE is_group = false;
-```
+**Migration SQL:** Correcao retroativa dos tickets de bot ja pontuados
 
-**Webhook (`onecode-webhook/index.ts`):**
-- Extrair `is_group` do payload: `Boolean(ticket?.isGroup ?? false)`
-- Adicionar ao objeto `row` antes do upsert
-
-**Scoring (`onecode-score-ticket/index.ts`):**
-- Adicionar `is_group` ao `.select()`
-- Apos buscar mensagens, checar `messages?.some((m) => m.is_group)`
-- Se grupo: salvar score nulo com `feedback: "Ticket de grupo — ignorado na avaliacao"` e `model_used: "skipped"`, retornar `{ ok: true, skipped: true, reason: "group_ticket" }`
-
-**Arquivos editados:**
-- `supabase/functions/onecode-webhook/index.ts`
-- `supabase/functions/onecode-score-ticket/index.ts`
+**Impacto:** Tickets de bot nao serao mais avaliados, economizando creditos de IA e mantendo a media de qualidade precisa para atendentes humanos reais.
 
