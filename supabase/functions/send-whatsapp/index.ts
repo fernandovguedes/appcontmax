@@ -77,11 +77,33 @@ Deno.serve(async (req) => {
       if (!oneCodeRes.ok) {
         status = "error";
       } else {
-        ticketId = responseRaw?.ticketId || responseRaw?.ticket_id || null;
+      ticketId = responseRaw?.ticketId || responseRaw?.ticket_id || null;
       }
     } catch (fetchErr) {
       status = "error";
       responseRaw = { error: String(fetchErr) };
+    }
+
+    // Auto-close ticket if send succeeded and we have a ticketId
+    let closeError: string | null = null;
+    if (status === "success" && ticketId) {
+      try {
+        const closeUrl = `${ONECODE_API_URL}/api/tickets/${ticketId}/send-and-close`;
+        const closeRes = await fetch(closeUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${ONECODE_API_TOKEN}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        });
+        if (!closeRes.ok) {
+          const closeBody = await closeRes.text();
+          closeError = `Failed to close ticket ${ticketId}: ${closeRes.status} ${closeBody}`;
+        }
+      } catch (err) {
+        closeError = `Error closing ticket ${ticketId}: ${String(err)}`;
+      }
     }
 
     // Log to whatsapp_logs
@@ -97,7 +119,7 @@ Deno.serve(async (req) => {
       user_id: userId,
       status,
       ticket_id: ticketId,
-      response_raw: responseRaw,
+      response_raw: closeError ? { ...responseRaw, close_error: closeError } : responseRaw,
     });
 
     if (status === "error") {
