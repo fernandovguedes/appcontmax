@@ -26,33 +26,26 @@ function jsonResp(body: Record<string, unknown>, status = 200) {
 }
 
 serve(async (req) => {
-  console.log("Webhook recebido");
-  console.log("Method:", req.method);
-  console.log("Headers:", JSON.stringify(Object.fromEntries(req.headers.entries())));
+  console.log("Webhook recebido, method:", req.method);
 
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   if (req.method !== "POST") {
-    console.error("Method not allowed:", req.method);
     return jsonResp({ error: "Method not allowed" }, 405);
   }
 
   try {
-    // Init supabase with service role (bypasses RLS)
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    console.log("SUPABASE_URL presente:", !!supabaseUrl);
-    console.log("SUPABASE_SERVICE_ROLE_KEY presente:", !!supabaseKey);
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
 
-    const supabase = createClient(supabaseUrl!, supabaseKey!);
-
-    // Determine source
+    // Source & secret validation
     const source = (req.headers.get("x-onecode-source") || "contmax").toLowerCase();
     const secret = req.headers.get("x-onecode-secret");
-    console.log("Source recebido:", source);
-    console.log("Secret recebido:", secret);
+    console.log("Source:", source, "Secret presente:", !!secret);
 
     const config = SOURCE_CONFIG[source];
     if (!config) {
@@ -60,54 +53,54 @@ serve(async (req) => {
       return jsonResp({ error: `Unknown source: ${source}` }, 400);
     }
 
-    // Validate webhook secret
     const expectedSecret = Deno.env.get(config.secretEnv);
-    console.log("Expected secret env var:", config.secretEnv);
-    console.log("Expected secret presente:", !!expectedSecret);
-    console.log("Secrets match:", secret === expectedSecret);
-
     if (!expectedSecret || secret !== expectedSecret) {
       console.error("Secret inválido");
       return jsonResp({ error: "unauthorized" }, 401);
     }
-
     console.log("Secret validado com sucesso");
 
-    // Parse body
-    const payload = await req.json();
-    console.log("Payload recebido:", JSON.stringify(payload));
+    // Parse body — OneCode wraps in { data: { object, action, payload } }
+    const body = await req.json();
+    const event = body?.data ?? body;
+    const onecodeObject = event?.object ?? null;
+    const onecodeAction = event?.action ?? null;
+    const payload = event?.payload ?? event;
 
-    // Extract event info
-    const event = payload.event ?? payload.type ?? null;
-    const message = payload.data ?? payload.message ?? payload;
-    const ticket = message.ticket ?? payload.ticket ?? {};
-    const messageId = String(message.id ?? message.messageId ?? message._id ?? "");
-    const ticketIdRaw = message.ticketId ?? ticket.id ?? null;
+    console.log("Event:", body?.data ? "data" : "root", "Object:", onecodeObject, "Action:", onecodeAction);
+    console.log("Payload keys:", Object.keys(payload ?? {}));
+
+    // Extract IDs from payload
+    const messageId = String(payload?.id ?? "");
+    const ticketIdRaw = payload?.ticketId ?? null;
     const ticketIdNum = ticketIdRaw ? Number(ticketIdRaw) : null;
 
-    let onecodeObject: string | null = null;
-    let onecodeAction: string | null = null;
-    if (event && typeof event === "string") {
-      const parts = event.split(".");
-      onecodeObject = parts[0] ?? null;
-      onecodeAction = parts[1] ?? null;
-    }
-
-    console.log("Event:", event, "Object:", onecodeObject, "Action:", onecodeAction);
     console.log("MessageId:", messageId, "TicketId:", ticketIdNum);
 
-    // 1) Persist raw event
-    console.log("Iniciando persistência no banco - onecode_webhook_events");
+    // 1) Always persist raw event
+    console.log("Persistindo em onecode_webhook_events");
     const eventRow = {
       source,
       onecode_object: onecodeObject,
       onecode_action: onecodeAction,
       message_id: messageId || null,
       ticket_id: ticketIdNum,
-      payload_json: payload,
+      payload_json: body,
       processed: false,
-      error_message: null,
+      error_message: null as string | null,
     };
+
+    // If not messages.create, mark as processed immediately
+    if (onecodeObject !== "messages" || onecodeAction !== "create") {
+      console.log("Evento ignorado (não é messages.create), marcando processed=true");
+      eventRow.processed = true;
+    }
+
+    // If messages.create but missing required IDs, log error but still return 200
+    if (onecodeObject === "messages" && onecodeAction === "create" && (!messageId || !ticketIdRaw)) {
+      console.error("messages.create sem id ou ticketId");
+      eventRow.error_message = "Missing id or ticketId in payload";
+    }
 
     const { data: insertedEvent, error: eventError } = await supabase
       .from("onecode_webhook_events")
@@ -116,73 +109,61 @@ serve(async (req) => {
       .single();
 
     if (eventError) {
-      console.error("Failed to insert webhook event:", JSON.stringify(eventError));
+      console.error("Erro ao inserir evento:", JSON.stringify(eventError));
       return jsonResp({ ok: true, warning: "event_log_failed", detail: eventError.message });
     }
 
     const eventId = insertedEvent.id;
-    console.log("Evento salvo com id:", eventId);
+    console.log("Evento salvo, id:", eventId);
 
-    // 2) Process in background
-    const processPromise = (async () => {
-      try {
-        // Only process messages.create events
-        if (event && event !== "messages.create") {
-          console.log("Evento ignorado (não é messages.create):", event);
+    // 2) Only process messages.create with valid IDs
+    if (onecodeObject === "messages" && onecodeAction === "create" && messageId && ticketIdRaw) {
+      const processPromise = (async () => {
+        try {
+          console.log("Persistindo em onecode_messages_raw");
+          const ticket = payload?.ticket ?? {};
+          const row = {
+            onecode_message_id: messageId,
+            ticket_id: String(ticketIdRaw),
+            contact_id: payload?.contactId ? String(payload.contactId) : null,
+            from_me: Boolean(payload?.fromMe ?? payload?.from_me ?? false),
+            body: payload?.body ?? payload?.text ?? null,
+            created_at_onecode: payload?.createdAt ?? payload?.created_at ?? null,
+            whatsapp_id: payload?.whatsappId ?? payload?.wid ?? null,
+            user_id: ticket?.userId ? String(ticket.userId) : null,
+            user_name: ticket?.user?.name ?? ticket?.userName ?? null,
+            payload_json: body,
+            organizacao_id: config.organizacaoId,
+          };
+
+          const { error: upsertError } = await supabase
+            .from("onecode_messages_raw")
+            .upsert(row, { onConflict: "onecode_message_id", ignoreDuplicates: true });
+
+          if (upsertError) {
+            console.error("Upsert error:", JSON.stringify(upsertError));
+            throw upsertError;
+          }
+
+          console.log("Mensagem salva, marcando processed=true");
           await supabase
             .from("onecode_webhook_events")
-            .update({ processed: true })
+            .update({ processed: true, error_message: null })
             .eq("id", eventId);
-          return;
+        } catch (procError: any) {
+          console.error("Processing error:", procError.message ?? String(procError));
+          await supabase
+            .from("onecode_webhook_events")
+            .update({ processed: false, error_message: procError.message ?? String(procError) })
+            .eq("id", eventId);
         }
+      })();
 
-        console.log("Iniciando persistência no banco - onecode_messages_raw");
-        const row = {
-          onecode_message_id: messageId,
-          ticket_id: String(ticketIdRaw ?? ""),
-          contact_id: message.contactId ? String(message.contactId) : null,
-          from_me: Boolean(message.fromMe ?? message.from_me ?? false),
-          body: message.body ?? message.text ?? null,
-          created_at_onecode: message.createdAt ?? message.created_at ?? null,
-          whatsapp_id: message.whatsappId ?? message.wid ?? null,
-          user_id: ticket.userId ? String(ticket.userId) : null,
-          user_name: ticket.user?.name ?? ticket.userName ?? null,
-          payload_json: payload,
-          organizacao_id: config.organizacaoId,
-        };
-
-        if (!row.onecode_message_id || !row.ticket_id) {
-          throw new Error("Missing onecode_message_id or ticket_id");
-        }
-
-        const { error: upsertError } = await supabase
-          .from("onecode_messages_raw")
-          .upsert(row, { onConflict: "onecode_message_id", ignoreDuplicates: true });
-
-        if (upsertError) {
-          console.error("Upsert error:", JSON.stringify(upsertError));
-          throw upsertError;
-        }
-
-        console.log("Mensagem salva com sucesso, marcando evento como processed");
-        await supabase
-          .from("onecode_webhook_events")
-          .update({ processed: true, error_message: null })
-          .eq("id", eventId);
-      } catch (procError: any) {
-        console.error("Processing error:", procError.message ?? String(procError));
-        await supabase
-          .from("onecode_webhook_events")
-          .update({ processed: false, error_message: procError.message ?? String(procError) })
-          .eq("id", eventId);
+      if (typeof (globalThis as any).EdgeRuntime?.waitUntil === "function") {
+        (globalThis as any).EdgeRuntime.waitUntil(processPromise);
+      } else {
+        processPromise.catch((e) => console.error("Background error:", e));
       }
-    })();
-
-    // Use waitUntil if available, otherwise await inline
-    if (typeof (globalThis as any).EdgeRuntime?.waitUntil === "function") {
-      (globalThis as any).EdgeRuntime.waitUntil(processPromise);
-    } else {
-      processPromise.catch((e) => console.error("Background processing error:", e));
     }
 
     console.log("Retornando 200 OK");
