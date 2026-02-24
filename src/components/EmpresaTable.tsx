@@ -7,7 +7,7 @@ import { FaturamentoPopover } from "@/components/FaturamentoPopover";
 import { ReinfAlert } from "@/components/ReinfAlert";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Pencil, Trash2, FileText, FileX, DollarSign, Archive, RotateCcw } from "lucide-react";
+import { Pencil, Trash2, FileText, FileX, DollarSign, Archive, RotateCcw, MessageCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -25,6 +25,7 @@ interface EmpresaTableProps {
   onStatusChange: (empresaId: string, mesTrimestre: typeof MESES_FECHAMENTO_TRIMESTRE[number], campo: keyof Empresa["obrigacoes"]["marco"], valor: StatusEntrega) => void;
   onExtratoChange: (empresaId: string, mes: MesKey, valor: StatusExtrato) => void;
   onMesFieldChange: (empresaId: string, mes: MesKey, campo: string, valor: any) => void;
+  onSendWhatsApp?: (empresa: Empresa) => void;
 }
 
 const LIMITE_DISTRIBUICAO_SOCIO = 50000;
@@ -42,7 +43,7 @@ function calcularDistribuicaoTrimestral(empresa: Empresa, mesFechamento: MesKey)
   return totalFaturamento * 0.75;
 }
 
-export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit, onFaturamento, onDelete, onBaixar, onReativar, onStatusChange, onExtratoChange, onMesFieldChange }: EmpresaTableProps) {
+export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit, onFaturamento, onDelete, onBaixar, onReativar, onStatusChange, onExtratoChange, onMesFieldChange, onSendWhatsApp }: EmpresaTableProps) {
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
   const mesTrimestre = getMesFechamentoTrimestre(mesSelecionado);
   const isDctfPos = isMesDctfPosFechamento(mesSelecionado);
@@ -225,6 +226,26 @@ export function EmpresaTable({ empresas, mesSelecionado, canEdit = true, onEdit,
                   }
                   <TableCell>
                     <div className="flex items-center justify-center gap-1">
+                      {onSendWhatsApp && (
+                        mes.extratoEnviado === "nao" ? (
+                          <Button variant="ghost" size="icon" onClick={() => onSendWhatsApp(empresa)} title="Enviar WhatsApp" className="text-green-600 hover:text-green-700">
+                            <MessageCircle className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex">
+                                  <Button variant="ghost" size="icon" disabled className="opacity-30">
+                                    <MessageCircle className="h-4 w-4" />
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>Extrato já enviado</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )
+                      )}
                       {onFaturamento &&
                       <Button variant="ghost" size="icon" onClick={() => onFaturamento(empresa)} title="Faturamento">
                           <DollarSign className="h-4 w-4" />

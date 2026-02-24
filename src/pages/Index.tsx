@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { DashboardSummary } from "@/components/DashboardSummary";
 import { EmpresaTable } from "@/components/EmpresaTable";
 import { FaturamentoFormDialog } from "@/components/FaturamentoFormDialog";
+import { WhatsAppConfirmDialog } from "@/components/WhatsAppConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -25,10 +26,12 @@ import { exportToExcel } from "@/lib/exportExcel";
 import { useModulePermissions } from "@/hooks/useModulePermissions";
 import { AppHeader } from "@/components/AppHeader";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
+import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const navigate = useNavigate();
   const { canEdit } = useModulePermissions("controle-fiscal");
+  const { toast } = useToast();
 
   const [organizacaoId, setOrganizacaoId] = useState<string | undefined>();
   useEffect(() => {
@@ -53,6 +56,7 @@ const Index = () => {
   const [dctfSmFilter, setDctfSmFilter] = useState(false);
   const [questorFilter, setQuestorFilter] = useState(false);
   const [faturamentoEmpresa, setFaturamentoEmpresa] = useState<Empresa | null>(null);
+  const [whatsappEmpresa, setWhatsappEmpresa] = useState<Empresa | null>(null);
 
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
   const isDctfPos = isMesDctfPosFechamento(mesSelecionado);
@@ -139,6 +143,31 @@ const Index = () => {
     },
     [empresas, updateEmpresa],
   );
+
+  const handleSendWhatsApp = useCallback((empresa: Empresa) => {
+    if (!empresa.whatsapp) {
+      toast({ title: "WhatsApp não cadastrado", description: "Esta empresa não possui número de WhatsApp cadastrado.", variant: "destructive" });
+      return;
+    }
+    setWhatsappEmpresa(empresa);
+  }, [toast]);
+
+  const handleWhatsAppConfirm = useCallback(async () => {
+    if (!whatsappEmpresa) return;
+    const competencia = `${MES_LABELS[mesSelecionado]}/2026`;
+    const body = `Olá, ${whatsappEmpresa.nome}! Identificamos que o extrato de ${competencia} ainda não foi enviado. Pode nos encaminhar por aqui hoje?`;
+
+    const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+      body: { to: whatsappEmpresa.whatsapp, body, empresa_id: whatsappEmpresa.id, ticketStrategy: "create" },
+    });
+
+    if (error || data?.error) {
+      toast({ title: "Erro ao enviar", description: data?.error || "Falha na comunicação com o serviço de mensagens.", variant: "destructive" });
+      throw new Error("send failed");
+    }
+
+    toast({ title: "Mensagem enviada", description: `WhatsApp enviado para ${whatsappEmpresa.nome}.` });
+  }, [whatsappEmpresa, mesSelecionado, toast]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -239,6 +268,7 @@ const Index = () => {
           onStatusChange={handleStatusChange}
           onExtratoChange={handleExtratoChange}
           onMesFieldChange={handleMesFieldChange}
+          onSendWhatsApp={handleSendWhatsApp}
         />
       </main>
 
@@ -250,6 +280,16 @@ const Index = () => {
           empresa={faturamentoEmpresa}
           mesSelecionado={mesSelecionado}
           onUpdate={updateEmpresa}
+        />
+      )}
+
+      {whatsappEmpresa && (
+        <WhatsAppConfirmDialog
+          open={!!whatsappEmpresa}
+          onOpenChange={(open) => { if (!open) setWhatsappEmpresa(null); }}
+          empresa={whatsappEmpresa}
+          mesSelecionado={mesSelecionado}
+          onConfirm={handleWhatsAppConfirm}
         />
       )}
     </div>
