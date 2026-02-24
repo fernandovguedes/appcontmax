@@ -28,6 +28,8 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AppHeader } from "@/components/AppHeader";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
+import { SyncPanel } from "@/components/SyncPanel";
+import { useUserRole } from "@/hooks/useUserRole";
 
 export default function Clientes() {
   const navigate = useNavigate();
@@ -47,7 +49,8 @@ export default function Clientes() {
       });
   }, [orgSlug]);
 
-  const { empresas, loading, addEmpresa, updateEmpresa, deleteEmpresa, baixarEmpresa, reativarEmpresa } = useEmpresas(orgInfo?.id);
+  const { empresas, loading, refetch, addEmpresa, updateEmpresa, deleteEmpresa, baixarEmpresa, reativarEmpresa } = useEmpresas(orgInfo?.id);
+  const { isAdmin } = useUserRole();
 
   const [search, setSearch] = useState("");
   const [regimeFilter, setRegimeFilter] = useState<RegimeTributario | "todos">("todos");
@@ -117,6 +120,9 @@ export default function Clientes() {
       />
 
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-6">
+        {isAdmin && orgSlug && orgInfo && (
+          <SyncPanel tenantSlug={orgSlug} tenantId={orgInfo.id} onSyncComplete={refetch} />
+        )}
         <div className="flex items-center gap-2 flex-wrap">
           <Select value={regimeFilter} onValueChange={(v) => setRegimeFilter(v as RegimeTributario | "todos")}>
             <SelectTrigger className="w-[180px]">
