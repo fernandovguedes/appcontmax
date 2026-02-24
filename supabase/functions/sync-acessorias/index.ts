@@ -323,12 +323,12 @@ Deno.serve(async (req) => {
           }
         }
 
+        // Log page processed
+        await logEntry("info", `Page ${page} processed: ${companies.length} companies`);
+
         // Check pagination end
         const totalPages = data?.totalPages || data?.total_pages;
         if (totalPages && page >= totalPages) {
-          hasMore = false;
-        } else if (companies.length < 50) {
-          // Assume page size ~50; if less returned, no more pages
           hasMore = false;
         } else {
           page++;
