@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { HonorarioEmpresa } from "@/hooks/useHonorarios";
+import type { HonorarioEmpresa, MesKey } from "@/hooks/useHonorarios";
+import { MES_LABELS } from "@/hooks/useHonorarios";
 
 interface Props {
   open: boolean;
@@ -21,6 +22,7 @@ interface Props {
     pessoal_valor: number;
     emitir_nf: string;
     nao_emitir_boleto: boolean;
+    mes_inicial: string;
   }) => Promise<boolean>;
   onUpdate?: (id: string, data: Partial<{
     fiscal_percentual: number;
@@ -28,6 +30,7 @@ interface Props {
     pessoal_valor: number;
     emitir_nf: string;
     nao_emitir_boleto: boolean;
+    mes_inicial: string;
   }>) => Promise<void>;
 }
 
@@ -38,6 +41,7 @@ export function HonorariosEmpresaDialog({ open, onOpenChange, empresasDisponivei
   const [pessoal, setPessoal] = useState("");
   const [emitirNf, setEmitirNf] = useState("");
   const [naoEmitirBoleto, setNaoEmitirBoleto] = useState(false);
+  const [mesInicial, setMesInicial] = useState<MesKey>("janeiro");
   const [saving, setSaving] = useState(false);
 
   const isEditing = !!editingEmpresa;
@@ -50,6 +54,7 @@ export function HonorariosEmpresaDialog({ open, onOpenChange, empresasDisponivei
       setPessoal(editingEmpresa.pessoal_valor.toString());
       setEmitirNf(editingEmpresa.emitir_nf);
       setNaoEmitirBoleto(editingEmpresa.nao_emitir_boleto);
+      setMesInicial(editingEmpresa.mes_inicial || "janeiro");
     } else {
       setEmpresaId("");
       setFiscal("");
@@ -57,6 +62,7 @@ export function HonorariosEmpresaDialog({ open, onOpenChange, empresasDisponivei
       setPessoal("");
       setEmitirNf("");
       setNaoEmitirBoleto(false);
+      setMesInicial("janeiro");
     }
   }, [editingEmpresa, open]);
 
@@ -73,6 +79,7 @@ export function HonorariosEmpresaDialog({ open, onOpenChange, empresasDisponivei
         pessoal_valor: pessoalNum,
         emitir_nf: emitirNf,
         nao_emitir_boleto: naoEmitirBoleto,
+        mes_inicial: mesInicial,
       });
       onOpenChange(false);
     } else {
@@ -84,6 +91,7 @@ export function HonorariosEmpresaDialog({ open, onOpenChange, empresasDisponivei
         pessoal_valor: pessoalNum,
         emitir_nf: emitirNf,
         nao_emitir_boleto: naoEmitirBoleto,
+        mes_inicial: mesInicial,
       });
       if (ok) onOpenChange(false);
     }
@@ -129,9 +137,24 @@ export function HonorariosEmpresaDialog({ open, onOpenChange, empresasDisponivei
               <Input value={pessoal} onChange={(e) => setPessoal(e.target.value)} placeholder="41" />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Emitir NF</Label>
-            <Input value={emitirNf} onChange={(e) => setEmitirNf(e.target.value)} placeholder="SIM, SIM MUZYKANT, etc." />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Emitir NF</Label>
+              <Input value={emitirNf} onChange={(e) => setEmitirNf(e.target.value)} placeholder="SIM, SIM MUZYKANT, etc." />
+            </div>
+            <div className="space-y-2">
+              <Label>Mês Inicial</Label>
+              <Select value={mesInicial} onValueChange={(v) => setMesInicial(v as MesKey)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(MES_LABELS) as MesKey[]).filter(m => m !== "fechamento").map((m) => (
+                    <SelectItem key={m} value={m}>{MES_LABELS[m]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <label className="flex items-center gap-2 cursor-pointer">
             <Checkbox checked={naoEmitirBoleto} onCheckedChange={(v) => setNaoEmitirBoleto(!!v)} />

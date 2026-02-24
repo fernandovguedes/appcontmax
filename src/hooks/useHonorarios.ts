@@ -35,6 +35,7 @@ export interface HonorarioEmpresa {
   pessoal_valor: number;
   emitir_nf: string;
   nao_emitir_boleto: boolean;
+  mes_inicial: MesKey;
   meses: Record<string, HonorarioMesData>;
 }
 
@@ -81,6 +82,7 @@ export function useHonorarios() {
           pessoal_valor: Number(row.pessoal_valor),
           emitir_nf: row.emitir_nf ?? "",
           nao_emitir_boleto: row.nao_emitir_boleto ?? false,
+          mes_inicial: row.mes_inicial ?? "janeiro",
           meses: row.meses ?? {},
         }))
       );
@@ -118,6 +120,7 @@ export function useHonorarios() {
     pessoal_valor: number;
     emitir_nf: string;
     nao_emitir_boleto: boolean;
+    mes_inicial: string;
   }) => {
     const { error } = await supabase.from("honorarios_empresas").insert(data as any);
     if (error) {
@@ -135,13 +138,14 @@ export function useHonorarios() {
     pessoal_valor: number;
     emitir_nf: string;
     nao_emitir_boleto: boolean;
+    mes_inicial: string;
   }>) => {
     const { error } = await supabase.from("honorarios_empresas").update(data as any).eq("id", id);
     if (error) {
       toast({ title: "Erro ao atualizar empresa", description: error.message, variant: "destructive" });
       return;
     }
-    setEmpresas((prev) => prev.map((e) => (e.id === id ? { ...e, ...data } : e)));
+    setEmpresas((prev) => prev.map((e) => (e.id === id ? { ...e, ...data } as HonorarioEmpresa : e)));
   }, [toast]);
 
   const deleteEmpresa = useCallback(async (id: string) => {
