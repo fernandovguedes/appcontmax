@@ -250,6 +250,16 @@ export default function Clientes() {
                       <span className="text-muted-foreground">Início Competência</span>
                       <p className="font-medium">{selectedEmpresa.inicioCompetencia || "—"}</p>
                     </div>
+                    <div>
+                      <span className="text-muted-foreground">WhatsApp</span>
+                      {selectedEmpresa.whatsapp ? (
+                        <a href={`https://wa.me/${selectedEmpresa.whatsapp}`} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline-offset-2 hover:underline block">
+                          {selectedEmpresa.whatsapp}
+                        </a>
+                      ) : (
+                        <p className="font-medium">—</p>
+                      )}
+                    </div>
                   </div>
                 </div>
 

@@ -40,6 +40,7 @@ export function exportClientesToExcel(empresas: Empresa[], nomeOrg: string) {
       "Regime Tributário": REGIME_LABELS[e.regimeTributario],
       "Emite NF": e.emiteNotaFiscal ? "Sim" : "Não",
       "Início Competência": e.inicioCompetencia || "—",
+      WhatsApp: e.whatsapp || "",
       Status: e.dataBaixa
         ? `Baixada em ${new Date(e.dataBaixa).toLocaleDateString("pt-BR")}`
         : "Ativa",

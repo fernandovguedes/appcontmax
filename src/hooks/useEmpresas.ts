@@ -50,6 +50,7 @@ function rowToEmpresa(row: any): Empresa {
     emiteNotaFiscal: row.emite_nota_fiscal,
     socios: row.socios ?? [],
     dataBaixa: row.data_baixa ?? undefined,
+    whatsapp: row.whatsapp ?? "",
     meses: {
       janeiro: { ...defaultMeses.janeiro, ...rawMeses.janeiro },
       fevereiro: { ...defaultMeses.fevereiro, ...rawMeses.fevereiro },
@@ -85,6 +86,7 @@ function empresaToRow(empresa: Partial<Empresa>) {
   if (empresa.meses !== undefined) row.meses = empresa.meses;
   if (empresa.obrigacoes !== undefined) row.obrigacoes = empresa.obrigacoes;
   if (empresa.dataBaixa !== undefined) row.data_baixa = empresa.dataBaixa;
+  if (empresa.whatsapp !== undefined) row.whatsapp = empresa.whatsapp;
   return row;
 }
 
