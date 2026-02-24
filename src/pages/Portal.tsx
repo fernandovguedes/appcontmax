@@ -26,6 +26,7 @@ const MODULE_ROUTES: Record<string, string> = {
   "clientes-contmax": "/clientes/contmax",
   "honorarios-contmax": "/honorarios-contmax",
   "comparativo-tributario": "/comparativo-tributario",
+  "dashboard-executivo": "/dashboard-executivo",
 };
 
 export default function Portal() {

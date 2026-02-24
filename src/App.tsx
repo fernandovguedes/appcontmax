@@ -11,6 +11,7 @@ import Admin from "./pages/Admin";
 import Auth from "./pages/Auth";
 import Honorarios from "./pages/Honorarios";
 import ComparativoTributario from "./pages/ComparativoTributario";
+import DashboardExecutivo from "./pages/DashboardExecutivo";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -43,6 +44,7 @@ const App = () => (
             <Route path="/clientes/:orgSlug" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
             <Route path="/honorarios-contmax" element={<ProtectedRoute><Honorarios /></ProtectedRoute>} />
             <Route path="/comparativo-tributario" element={<ProtectedRoute><ComparativoTributario /></ProtectedRoute>} />
+            <Route path="/dashboard-executivo" element={<ProtectedRoute><DashboardExecutivo /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
