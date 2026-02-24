@@ -4,7 +4,7 @@ import { useModules, Module } from "@/hooks/useModules";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Settings, FileText, LayoutDashboard, Users, DollarSign, BarChart3, Award } from "lucide-react";
+import { Settings, FileText, LayoutDashboard, Users, DollarSign, BarChart3, Award, Cable } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 
@@ -45,7 +45,7 @@ export default function Portal() {
 
   const userName = user?.user_metadata?.nome || user?.email?.split("@")[0] || "";
 
-  const systemModules = modules.filter((m: Module) => !m.slug.startsWith("clientes-"));
+  const systemModules = modules.filter((m: Module) => !m.slug.startsWith("clientes-") && m.slug !== "integracoes");
   const clientModules = modules.filter((m: Module) => m.slug.startsWith("clientes-"));
 
   return (
@@ -57,14 +57,24 @@ export default function Portal() {
         userName={userName}
         actions={
           isAdmin ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/admin")}
-              className="text-primary-foreground/80 hover:text-primary-foreground hover:bg-white/10"
-            >
-              <Settings className="mr-1 h-4 w-4" /> Admin
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/integracoes")}
+                className="text-primary-foreground/80 hover:text-primary-foreground hover:bg-white/10"
+              >
+                <Cable className="mr-1 h-4 w-4" /> Integrações
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/admin")}
+                className="text-primary-foreground/80 hover:text-primary-foreground hover:bg-white/10"
+              >
+                <Settings className="mr-1 h-4 w-4" /> Admin
+              </Button>
+            </>
           ) : undefined
         }
       />
