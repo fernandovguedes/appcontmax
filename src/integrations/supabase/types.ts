@@ -162,6 +162,7 @@ export type Database = {
           nome: string
           numero: number
           obrigacoes: Json
+          onecode_contact_id: string | null
           organizacao_id: string
           raw_payload: Json | null
           regime_tributario: string
@@ -169,6 +170,7 @@ export type Database = {
           synced_at: string | null
           updated_at: string
           whatsapp: string | null
+          whatsapp_synced_at: string | null
         }
         Insert: {
           cnpj: string
@@ -185,6 +187,7 @@ export type Database = {
           nome: string
           numero?: number
           obrigacoes?: Json
+          onecode_contact_id?: string | null
           organizacao_id: string
           raw_payload?: Json | null
           regime_tributario?: string
@@ -192,6 +195,7 @@ export type Database = {
           synced_at?: string | null
           updated_at?: string
           whatsapp?: string | null
+          whatsapp_synced_at?: string | null
         }
         Update: {
           cnpj?: string
@@ -208,6 +212,7 @@ export type Database = {
           nome?: string
           numero?: number
           obrigacoes?: Json
+          onecode_contact_id?: string | null
           organizacao_id?: string
           raw_payload?: Json | null
           regime_tributario?: string
@@ -215,6 +220,7 @@ export type Database = {
           synced_at?: string | null
           updated_at?: string
           whatsapp?: string | null
+          whatsapp_synced_at?: string | null
         }
         Relationships: [
           {
@@ -297,6 +303,48 @@ export type Database = {
           },
         ]
       }
+      integration_logs: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          execution_time_ms: number | null
+          id: string
+          integration: string
+          status: string
+          tenant_id: string
+          total_ignored: number
+          total_matched: number
+          total_processados: number
+          total_review: number
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          integration: string
+          status: string
+          tenant_id: string
+          total_ignored?: number
+          total_matched?: number
+          total_processados?: number
+          total_review?: number
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          integration?: string
+          status?: string
+          tenant_id?: string
+          total_ignored?: number
+          total_matched?: number
+          total_processados?: number
+          total_review?: number
+        }
+        Relationships: []
+      }
       modules: {
         Row: {
           ativo: boolean
@@ -340,6 +388,87 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      onecode_contact_match_log: {
+        Row: {
+          company_id: string | null
+          contact_id: string
+          contact_name: string
+          created_at: string
+          id: string
+          processed_at: string | null
+          similarity_score: number
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          contact_id: string
+          contact_name: string
+          created_at?: string
+          id?: string
+          processed_at?: string | null
+          similarity_score: number
+          status: string
+          tenant_id: string
+        }
+        Update: {
+          company_id?: string | null
+          contact_id?: string
+          contact_name?: string
+          created_at?: string
+          id?: string
+          processed_at?: string | null
+          similarity_score?: number
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: []
+      }
+      onecode_contact_review: {
+        Row: {
+          contact_id: string
+          contact_name: string
+          contact_phone: string | null
+          created_at: string
+          id: string
+          resolved: boolean
+          resolved_action: string | null
+          resolved_at: string | null
+          similarity_score: number
+          suggested_company_id: string
+          suggested_company_name: string
+          tenant_id: string
+        }
+        Insert: {
+          contact_id: string
+          contact_name: string
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          resolved?: boolean
+          resolved_action?: string | null
+          resolved_at?: string | null
+          similarity_score: number
+          suggested_company_id: string
+          suggested_company_name: string
+          tenant_id: string
+        }
+        Update: {
+          contact_id?: string
+          contact_name?: string
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          resolved?: boolean
+          resolved_action?: string | null
+          resolved_at?: string | null
+          similarity_score?: number
+          suggested_company_id?: string
+          suggested_company_name?: string
+          tenant_id?: string
+        }
+        Relationships: []
       }
       onecode_messages_raw: {
         Row: {
