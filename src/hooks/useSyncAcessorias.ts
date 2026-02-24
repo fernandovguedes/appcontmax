@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface SyncJob {
@@ -34,6 +34,7 @@ export function useSyncAcessorias(tenantSlug: string | undefined, tenantId: stri
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [pingResult, setPingResult] = useState<PingResult | null>(null);
   const [pinging, setPinging] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-acessorias`;
 
@@ -52,6 +53,36 @@ export function useSyncAcessorias(tenantSlug: string | undefined, tenantId: stri
 
   useEffect(() => {
     fetchHistory();
+  }, [fetchHistory]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
+  const pollJobStatus = useCallback((jobId: string) => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    
+    pollRef.current = setInterval(async () => {
+      const { data } = await supabase
+        .from("sync_jobs")
+        .select("id, status, total_read, total_created, total_updated, total_skipped, total_errors, error_message, started_at, finished_at")
+        .eq("id", jobId)
+        .single();
+
+      if (data) {
+        setResult(data as SyncJob);
+        if (data.status !== "running") {
+          // Job finished
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+          setSyncing(false);
+          await fetchHistory();
+        }
+      }
+    }, 3000);
   }, [fetchHistory]);
 
   const pingSync = useCallback(async () => {
@@ -80,24 +111,30 @@ export function useSyncAcessorias(tenantSlug: string | undefined, tenantId: stri
       const { data, error: fnError } = await supabase.functions.invoke("sync-acessorias", {
         body: { tenant_slug: tenantSlug },
       });
-      
-      if (fnError) {
-        // Try to parse error details from the response
-        throw fnError;
-      }
-      
-      // Check if response contains an error field (4xx/5xx with JSON body)
+
+      if (fnError) throw fnError;
+
       if (data?.error) {
         setError({
           message: data.error,
           detail: data.detail || undefined,
           status: data.status,
         });
+        setSyncing(false);
         return;
       }
-      
-      setResult(data as SyncJob);
-      await fetchHistory();
+
+      // Backend now returns immediately with job_id + status:"running"
+      if (data?.job_id) {
+        setResult({ ...(data as any), status: "running", total_read: 0, total_created: 0, total_updated: 0, total_skipped: 0, total_errors: 0, started_at: new Date().toISOString(), finished_at: null, error_message: null } as SyncJob);
+        // Start polling for completion
+        pollJobStatus(data.job_id);
+      } else {
+        // Legacy: response already contains final result
+        setResult(data as SyncJob);
+        setSyncing(false);
+        await fetchHistory();
+      }
     } catch (err: any) {
       const msg = err.message ?? "Erro ao sincronizar";
       setError({
@@ -105,10 +142,9 @@ export function useSyncAcessorias(tenantSlug: string | undefined, tenantId: stri
         detail: err.context?.body ? JSON.stringify(err.context.body) : undefined,
         status: err.context?.status,
       });
-    } finally {
       setSyncing(false);
     }
-  }, [tenantSlug, fetchHistory]);
+  }, [tenantSlug, fetchHistory, pollJobStatus]);
 
   return { syncing, result, error, history, loadingHistory, triggerSync, fetchHistory, pingSync, pingResult, pinging, functionUrl };
 }
