@@ -27,15 +27,34 @@ function normalizeKey(raw: string): string {
 function formatCnpj(raw: string): string {
   const digits = raw.replace(/\D/g, "");
   if (digits.length === 14) {
-    return digits.replace(
-      /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
-      "$1.$2.$3/$4-$5"
-    );
+    return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
   }
   if (digits.length === 11) {
     return digits.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
   }
   return raw;
+}
+
+interface SyncCounters {
+  totalRead: number;
+  totalCreated: number;
+  totalUpdated: number;
+  totalSkipped: number;
+  totalErrors: number;
+}
+
+async function updateJobProgress(
+  supabase: ReturnType<typeof createClient>,
+  jobId: string,
+  counters: SyncCounters,
+) {
+  await supabase.from("sync_jobs").update({
+    total_read: counters.totalRead,
+    total_created: counters.totalCreated,
+    total_updated: counters.totalUpdated,
+    total_skipped: counters.totalSkipped,
+    total_errors: counters.totalErrors,
+  }).eq("id", jobId);
 }
 
 async function runSync(
@@ -46,11 +65,7 @@ async function runSync(
   apiToken: string,
   baseUrl: string,
 ) {
-  let totalRead = 0;
-  let totalCreated = 0;
-  let totalUpdated = 0;
-  let totalSkipped = 0;
-  let totalErrors = 0;
+  const c: SyncCounters = { totalRead: 0, totalCreated: 0, totalUpdated: 0, totalSkipped: 0, totalErrors: 0 };
 
   const logEntry = async (level: string, message: string, payload?: unknown) => {
     await supabase.from("sync_logs").insert({
@@ -77,7 +92,7 @@ async function runSync(
       if (!res.ok) {
         const errText = await res.text();
         await logEntry("error", `API error page ${page}: ${res.status}`, { body: errText });
-        totalErrors++;
+        c.totalErrors++;
         break;
       }
 
@@ -85,10 +100,8 @@ async function runSync(
 
       const companies = Array.isArray(data)
         ? data
-        : Array.isArray(data?.data)
-        ? data.data
-        : Array.isArray(data?.items)
-        ? data.items
+        : Array.isArray(data?.data) ? data.data
+        : Array.isArray(data?.items) ? data.items
         : [];
 
       if (companies.length === 0) {
@@ -97,12 +110,12 @@ async function runSync(
       }
 
       for (const company of companies) {
-        totalRead++;
+        c.totalRead++;
         try {
           const rawKey = company.cnpj || company.cpf || company.identificador || company.document || "";
           if (!rawKey) {
             await logEntry("warning", "Empresa sem CNPJ/CPF, ignorada", { company });
-            totalSkipped++;
+            c.totalSkipped++;
             continue;
           }
 
@@ -136,9 +149,9 @@ async function runSync(
             });
             if (insertErr) {
               await logEntry("error", `Insert failed: ${formattedKey}`, { error: insertErr.message });
-              totalErrors++;
+              c.totalErrors++;
             } else {
-              totalCreated++;
+              c.totalCreated++;
             }
           } else if (existing.hash_payload !== hash) {
             const { error: updateErr } = await supabase
@@ -154,20 +167,23 @@ async function runSync(
               .eq("id", existing.id);
             if (updateErr) {
               await logEntry("error", `Update failed: ${formattedKey}`, { error: updateErr.message });
-              totalErrors++;
+              c.totalErrors++;
             } else {
-              totalUpdated++;
+              c.totalUpdated++;
             }
           } else {
-            totalSkipped++;
+            c.totalSkipped++;
           }
         } catch (companyErr) {
-          totalErrors++;
+          c.totalErrors++;
           await logEntry("error", `Error processing company`, { error: String(companyErr), company });
         }
       }
 
       await logEntry("info", `Page ${page} processed: ${companies.length} companies`);
+      
+      // Update progress after each page so frontend polling sees real-time counters
+      await updateJobProgress(supabase, jobId, c);
 
       const totalPages = data?.totalPages || data?.total_pages;
       if (totalPages && page >= totalPages) {
@@ -179,28 +195,28 @@ async function runSync(
 
     await supabase.from("sync_jobs").update({
       status: "success",
-      total_read: totalRead,
-      total_created: totalCreated,
-      total_updated: totalUpdated,
-      total_skipped: totalSkipped,
-      total_errors: totalErrors,
+      total_read: c.totalRead,
+      total_created: c.totalCreated,
+      total_updated: c.totalUpdated,
+      total_skipped: c.totalSkipped,
+      total_errors: c.totalErrors,
       finished_at: new Date().toISOString(),
     }).eq("id", jobId);
   } catch (syncErr) {
     await supabase.from("sync_jobs").update({
       status: "failed",
-      total_read: totalRead,
-      total_created: totalCreated,
-      total_updated: totalUpdated,
-      total_skipped: totalSkipped,
-      total_errors: totalErrors,
+      total_read: c.totalRead,
+      total_created: c.totalCreated,
+      total_updated: c.totalUpdated,
+      total_skipped: c.totalSkipped,
+      total_errors: c.totalErrors,
       finished_at: new Date().toISOString(),
       error_message: String(syncErr),
     }).eq("id", jobId);
     await logEntry("error", "Sync failed", { error: String(syncErr) });
   }
 
-  console.log(`[sync-acessorias] Sync complete: read=${totalRead} created=${totalCreated} updated=${totalUpdated} skipped=${totalSkipped} errors=${totalErrors}`);
+  console.log(`[sync-acessorias] Sync complete: read=${c.totalRead} created=${c.totalCreated} updated=${c.totalUpdated} skipped=${c.totalSkipped} errors=${c.totalErrors}`);
 }
 
 Deno.serve(async (req) => {
@@ -211,7 +227,6 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   console.log(`[sync-acessorias] ${req.method} ${url.pathname}${url.search}`);
 
-  // --- PING endpoint (GET) ---
   if (req.method === "GET") {
     console.log("[sync-acessorias] PING request received");
     return new Response(
@@ -232,7 +247,6 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // --- Auth: validate JWT ---
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(
@@ -255,7 +269,6 @@ Deno.serve(async (req) => {
     }
     const userId = claimsData.claims.sub as string;
 
-    // --- Parse body ---
     const body = await req.json();
     const tenantSlug = body.tenant_slug;
     console.log(`[sync-acessorias] POST sync request - tenant_slug: ${tenantSlug}, userId: ${userId}`);
@@ -269,7 +282,6 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // --- Check admin permission ---
     const { data: isAdmin } = await supabase.rpc("is_tenant_admin", {
       _user_id: userId,
       _tenant_slug: tenantSlug,
@@ -281,7 +293,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // --- Resolve tenant ---
     const { data: tenant } = await supabase.from("organizacoes").select("id").eq("slug", tenantSlug).single();
     if (!tenant) {
       return new Response(
@@ -291,7 +302,6 @@ Deno.serve(async (req) => {
     }
     const tenantId = tenant.id;
 
-    // --- Load token ---
     const secretName = tenantSlug === "contmax" ? "ACESSORIAS_TOKEN_CONTMAX" : "ACESSORIAS_TOKEN_PG";
     const apiToken = Deno.env.get(secretName);
     if (!apiToken) {
@@ -301,7 +311,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // --- Get base_url ---
     const { data: integration } = await supabase
       .from("tenant_integrations")
       .select("base_url, is_enabled")
@@ -317,7 +326,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // --- Create sync_job ---
     const { data: job } = await supabase.from("sync_jobs").insert({
       tenant_id: tenantId,
       provider: "acessorias",
@@ -329,17 +337,14 @@ Deno.serve(async (req) => {
 
     console.log(`[sync-acessorias] Job ${jobId} created, returning immediately. Processing in background.`);
 
-    // --- Run sync in background (non-blocking) ---
-    // @ts-ignore: EdgeRuntime.waitUntil is available in Deno Deploy / Supabase Edge
+    // @ts-ignore: EdgeRuntime.waitUntil is available in Supabase Edge
     if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
       // @ts-ignore
       EdgeRuntime.waitUntil(runSync(supabase, jobId, tenantId, tenantSlug, apiToken, baseUrl));
     } else {
-      // Fallback: run without waitUntil (will be cut off after response)
       runSync(supabase, jobId, tenantId, tenantSlug, apiToken, baseUrl);
     }
 
-    // Return immediately with job_id
     return new Response(
       JSON.stringify({
         success: true,
