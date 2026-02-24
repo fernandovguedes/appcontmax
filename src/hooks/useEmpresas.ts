@@ -144,10 +144,10 @@ export function useEmpresas(organizacaoId?: string) {
       return;
     }
 
-    const LIGHT_COLUMNS = "id, numero, nome, cnpj, regime_tributario, emite_nota_fiscal, data_abertura, data_baixa, data_cadastro, whatsapp, socios, organizacao_id";
+    const COLUMNS = "id, numero, nome, cnpj, regime_tributario, emite_nota_fiscal, data_abertura, data_baixa, data_cadastro, whatsapp, socios, organizacao_id, meses, obrigacoes";
     const { data, error } = await supabase
       .from("empresas")
-      .select(LIGHT_COLUMNS)
+      .select(COLUMNS)
       .eq("organizacao_id", organizacaoId)
       .order("nome", { ascending: true });
     if (error) {
@@ -161,7 +161,7 @@ export function useEmpresas(organizacaoId?: string) {
       if (seeded) {
         const { data: seededData } = await supabase
           .from("empresas")
-          .select(LIGHT_COLUMNS)
+          .select(COLUMNS)
           .eq("organizacao_id", organizacaoId)
           .order("nome", { ascending: true });
         setEmpresas((seededData ?? []).map(rowToEmpresa));
