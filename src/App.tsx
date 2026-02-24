@@ -14,6 +14,8 @@ import ComparativoTributario from "./pages/ComparativoTributario";
 import DashboardExecutivo from "./pages/DashboardExecutivo";
 import QualidadeAtendimento from "./pages/QualidadeAtendimento";
 import OnecodeContacts from "./pages/OnecodeContacts";
+import Integracoes from "./pages/Integracoes";
+import IntegracaoDetalhe from "./pages/IntegracaoDetalhe";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +50,8 @@ const App = () => (
             <Route path="/comparativo-tributario" element={<ProtectedRoute><ComparativoTributario /></ProtectedRoute>} />
             <Route path="/dashboard-executivo" element={<ProtectedRoute><DashboardExecutivo /></ProtectedRoute>} />
             <Route path="/qualidade-atendimento" element={<ProtectedRoute><QualidadeAtendimento /></ProtectedRoute>} />
+            <Route path="/integracoes" element={<ProtectedRoute><Integracoes /></ProtectedRoute>} />
+            <Route path="/integracoes/:slug" element={<ProtectedRoute><IntegracaoDetalhe /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             <Route path="/admin/onecode-contacts" element={<ProtectedRoute><OnecodeContacts /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />

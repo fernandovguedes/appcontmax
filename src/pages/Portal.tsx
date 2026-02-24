@@ -15,6 +15,7 @@ const ICON_MAP: Record<string, typeof FileText> = {
   DollarSign,
   BarChart3,
   Award,
+  Settings,
 };
 
 function getModuleIcon(iconName: string | null) {
@@ -29,6 +30,7 @@ const MODULE_ROUTES: Record<string, string> = {
   "comparativo-tributario": "/comparativo-tributario",
   "dashboard-executivo": "/dashboard-executivo",
   "qualidade-atendimento": "/qualidade-atendimento",
+  "integracoes": "/integracoes",
 };
 
 export default function Portal() {

@@ -307,9 +307,13 @@ export type Database = {
         Row: {
           created_at: string
           error_message: string | null
+          execution_id: string
           execution_time_ms: number | null
           id: string
           integration: string
+          payload: Json | null
+          provider_slug: string | null
+          response: Json | null
           status: string
           tenant_id: string
           total_ignored: number
@@ -320,9 +324,13 @@ export type Database = {
         Insert: {
           created_at?: string
           error_message?: string | null
+          execution_id?: string
           execution_time_ms?: number | null
           id?: string
           integration: string
+          payload?: Json | null
+          provider_slug?: string | null
+          response?: Json | null
           status: string
           tenant_id: string
           total_ignored?: number
@@ -333,15 +341,52 @@ export type Database = {
         Update: {
           created_at?: string
           error_message?: string | null
+          execution_id?: string
           execution_time_ms?: number | null
           id?: string
           integration?: string
+          payload?: Json | null
+          provider_slug?: string | null
+          response?: Json | null
           status?: string
           tenant_id?: string
           total_ignored?: number
           total_matched?: number
           total_processados?: number
           total_review?: number
+        }
+        Relationships: []
+      }
+      integration_providers: {
+        Row: {
+          category: string
+          config_schema: Json
+          created_at: string
+          description: string | null
+          id: string
+          is_global: boolean
+          name: string
+          slug: string
+        }
+        Insert: {
+          category?: string
+          config_schema?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_global?: boolean
+          name: string
+          slug: string
+        }
+        Update: {
+          category?: string
+          config_schema?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_global?: boolean
+          name?: string
+          slug?: string
         }
         Relationships: []
       }
@@ -784,32 +829,57 @@ export type Database = {
       tenant_integrations: {
         Row: {
           base_url: string
+          config: Json
           created_at: string
           id: string
           is_enabled: boolean
+          last_error: string | null
+          last_run: string | null
+          last_status: string | null
+          plan_feature_code: string | null
           provider: string
+          provider_id: string | null
           tenant_id: string
           updated_at: string
         }
         Insert: {
           base_url?: string
+          config?: Json
           created_at?: string
           id?: string
           is_enabled?: boolean
+          last_error?: string | null
+          last_run?: string | null
+          last_status?: string | null
+          plan_feature_code?: string | null
           provider: string
+          provider_id?: string | null
           tenant_id: string
           updated_at?: string
         }
         Update: {
           base_url?: string
+          config?: Json
           created_at?: string
           id?: string
           is_enabled?: boolean
+          last_error?: string | null
+          last_run?: string | null
+          last_status?: string | null
+          plan_feature_code?: string | null
           provider?: string
+          provider_id?: string | null
           tenant_id?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tenant_integrations_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "integration_providers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tenant_integrations_tenant_id_fkey"
             columns: ["tenant_id"]
