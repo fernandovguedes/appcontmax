@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Download, AlertTriangle, FileText, CalendarIcon, Mail } from "lucide-react";
+import { Search, Filter, Download, AlertTriangle, FileText, Mail } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Checkbox } from "@/components/ui/checkbox";
 import { isMesFechamentoTrimestre, calcularFaturamentoTrimestre, isMesDctfPosFechamento, getTrimestreFechamentoAnterior } from "@/types/fiscal";
@@ -31,11 +31,6 @@ import { useModulePermissions } from "@/hooks/useModulePermissions";
 import { AppHeader } from "@/components/AppHeader";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { cn } from "@/lib/utils";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -67,9 +62,6 @@ const Index = () => {
   const [dctfSmFilter, setDctfSmFilter] = useState(false);
   const [questorFilter, setQuestorFilter] = useState(false);
   const [extratoPendenteFilter, setExtratoPendenteFilter] = useState(false);
-  const [dataCadastroInicio, setDataCadastroInicio] = useState<Date | undefined>();
-  const [dataCadastroFim, setDataCadastroFim] = useState<Date | undefined>();
-  const [dataCadastroAplicado, setDataCadastroAplicado] = useState<{ inicio?: Date; fim?: Date } | null>(null);
   const [faturamentoEmpresa, setFaturamentoEmpresa] = useState<Empresa | null>(null);
   const [whatsappEmpresa, setWhatsappEmpresa] = useState<Empresa | null>(null);
   const [whatsappIsResend, setWhatsappIsResend] = useState(false);
@@ -124,21 +116,7 @@ const Index = () => {
       matchesExtratoPendente = dados.extratoEnviado === "nao";
     }
 
-    let matchesDataCadastro = true;
-    if (dataCadastroAplicado) {
-      const dc = e.dataCadastro;
-      if (dataCadastroAplicado.inicio) {
-        matchesDataCadastro = dc >= format(dataCadastroAplicado.inicio, "yyyy-MM-dd");
-      }
-      if (matchesDataCadastro && dataCadastroAplicado.fim) {
-        // Inclusive: add 1 day
-        const nextDay = new Date(dataCadastroAplicado.fim);
-        nextDay.setDate(nextDay.getDate() + 1);
-        matchesDataCadastro = dc < format(nextDay, "yyyy-MM-dd");
-      }
-    }
-
-    return matchesSearch && matchesRegime && matchesReinf && matchesNfExterior && matchesDctfSm && matchesQuestor && matchesExtratoPendente && matchesDataCadastro;
+    return matchesSearch && matchesRegime && matchesReinf && matchesNfExterior && matchesDctfSm && matchesQuestor && matchesExtratoPendente;
   });
 
   const handleFaturamento = useCallback((empresa: Empresa) => {
@@ -319,54 +297,11 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Date range filter for data_cadastro */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-muted-foreground font-medium">Cadastro:</span>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className={cn("w-[140px] justify-start text-left font-normal", !dataCadastroInicio && "text-muted-foreground")}>
-                <CalendarIcon className="mr-1 h-3.5 w-3.5" />
-                {dataCadastroInicio ? format(dataCadastroInicio, "dd/MM/yyyy") : "Data inicial"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={dataCadastroInicio} onSelect={setDataCadastroInicio} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
-            </PopoverContent>
-          </Popover>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className={cn("w-[140px] justify-start text-left font-normal", !dataCadastroFim && "text-muted-foreground")}>
-                <CalendarIcon className="mr-1 h-3.5 w-3.5" />
-                {dataCadastroFim ? format(dataCadastroFim, "dd/MM/yyyy") : "Data final"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={dataCadastroFim} onSelect={setDataCadastroFim} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
-            </PopoverContent>
-          </Popover>
-          <Button size="sm" variant="secondary" onClick={() => { if (dataCadastroInicio || dataCadastroFim) setDataCadastroAplicado({ inicio: dataCadastroInicio, fim: dataCadastroFim }); }} disabled={!dataCadastroInicio && !dataCadastroFim}>
-            Aplicar
-          </Button>
-          {dataCadastroAplicado && (
-            <Button size="sm" variant="ghost" onClick={() => { setDataCadastroAplicado(null); setDataCadastroInicio(undefined); setDataCadastroFim(undefined); }}>
-              Limpar
-            </Button>
-          )}
-        </div>
-
-        {/* Active filter indicators */}
-        {(dataCadastroAplicado || extratoPendenteFilter) && (
+        {extratoPendenteFilter && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Filter className="h-3.5 w-3.5" />
-            <span>Filtros ativos:</span>
-            {dataCadastroAplicado && (
-              <span className="bg-muted rounded px-2 py-0.5">
-                Cadastro: {dataCadastroAplicado.inicio ? format(dataCadastroAplicado.inicio, "dd/MM/yyyy") : "∞"} — {dataCadastroAplicado.fim ? format(dataCadastroAplicado.fim, "dd/MM/yyyy") : "∞"}
-              </span>
-            )}
-            {extratoPendenteFilter && (
-              <span className="bg-muted rounded px-2 py-0.5">Extrato Pendente</span>
-            )}
+            <span>Filtro ativo:</span>
+            <span className="bg-muted rounded px-2 py-0.5">Extrato Pendente</span>
           </div>
         )}
 
