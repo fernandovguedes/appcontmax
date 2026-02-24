@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Plus, Search, Filter, Pencil, Trash2, Archive, RotateCcw, FileText, FileX, CalendarIcon, Users, Building2, Download } from "lucide-react";
+import { Plus, Search, Filter, Pencil, Trash2, Archive, RotateCcw, FileText, FileX, CalendarIcon, Users, Building2, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { exportClientesToExcel } from "@/lib/exportExcel";
 import { useNavigate, useParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -54,6 +54,8 @@ export default function Clientes() {
 
   const [search, setSearch] = useState("");
   const [regimeFilter, setRegimeFilter] = useState<RegimeTributario | "todos">("todos");
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
   const [formOpen, setFormOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
   const [selectedEmpresa, setSelectedEmpresa] = useState<Empresa | null>(null);
@@ -66,6 +68,13 @@ export default function Clientes() {
     const matchesRegime = regimeFilter === "todos" || e.regimeTributario === regimeFilter;
     return matchesSearch && matchesRegime;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safeCurrentPage = Math.min(page, totalPages);
+  const paginatedEmpresas = filtered.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize);
+
+  // Reset page when filters change
+  useEffect(() => { setPage(1); }, [search, regimeFilter]);
 
   // Keep selectedEmpresa in sync with empresas state
   useEffect(() => {
@@ -163,14 +172,14 @@ export default function Clientes() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 && (
+              {paginatedEmpresas.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                     Nenhuma empresa encontrada.
                   </TableCell>
                 </TableRow>
               )}
-              {filtered.map((empresa) => (
+              {paginatedEmpresas.map((empresa) => (
                 <TableRow key={empresa.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedEmpresa(empresa)}>
                   <TableCell className="font-medium">{empresa.numero}</TableCell>
                   <TableCell className="font-medium">
@@ -213,6 +222,33 @@ export default function Clientes() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-2 py-3">
+            <span className="text-sm text-muted-foreground">
+              {filtered.length} empresas · Página {safeCurrentPage} de {totalPages}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safeCurrentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safeCurrentPage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Próxima <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Detail Sheet - opens on company name click */}
