@@ -1,82 +1,44 @@
 
+## Encerramento em Lote dos Contratos Legados no BomControle
 
-## Edge Function: close-bomcontrole-contracts
+### Situacao Atual
 
-Encerramento em lote de contratos antigos (legacy) no BomControle, com modo dry-run e execute.
+O dry-run revelou dois problemas que impedem o encerramento dos 455 contratos:
 
-### 1. Migracao de banco de dados
+1. **Limite de batch fixo em 20**: A function busca no maximo 20 contratos por execucao
+2. **Rate limiting da API (HTTP 429)**: A API do BomControle bloqueia apos ~10 requisicoes rapidas consecutivas
 
-Adicionar 3 colunas na tabela `bc_contracts`:
+Dos 20 processados no teste: 10 retornaram "ok_to_close", 10 deram erro 429. Zero bloqueados por pagamento futuro.
 
-- `legacy` (boolean, default false) -- marca contratos antigos elegiveis para encerramento
-- `closed_at` (timestamptz, nullable) -- data/hora do encerramento efetivo
-- `closed_competencia` (text, nullable) -- competencia usada no encerramento (ex: "2026-03")
+### Plano de Implementacao
 
-### 2. Nova edge function: `close-bomcontrole-contracts`
+#### 1. Atualizar a edge function `close-bomcontrole-contracts`
 
-Arquivo: `supabase/functions/close-bomcontrole-contracts/index.ts`
+Modificacoes necessarias:
 
-Registrar em `supabase/config.toml` com `verify_jwt = false`.
+- **Remover o limite de 20** e buscar todos os contratos ativos+legados (usar paginacao do Supabase com range para buscar alem de 1000 se necessario)
+- **Adicionar delay entre chamadas** para evitar 429: inserir um `await sleep(500ms)` entre cada chamada a API do BomControle
+- **Retry inteligente para 429**: quando receber HTTP 429, esperar 3 segundos e tentar novamente (ate 3 retries), em vez de marcar como erro imediato
+- **Suporte a offset/cursor**: aceitar parametro `offset` opcional no body para permitir continuar de onde parou caso o timeout da edge function (60s) seja atingido
 
-**Input (POST body):**
-```text
-{
-  "tenant_id": "contmax",
-  "competencia_corte": "2026-03",
-  "execute": false
-}
-```
+#### 2. Estrategia de execucao
 
-**Logica:**
+Como 455 contratos com delay de 500ms entre chamadas = ~4 minutos so para dry-run (mais ~4 min para execucao), e edge functions tem timeout de ~60s, a abordagem sera:
 
-1. Buscar contratos em `bc_contracts` onde `tenant_id` = input, `active` = true, `legacy` = true
-2. Limitar a 20 contratos por execucao (batch size)
-3. Para cada contrato:
-   - GET `/integracao/VendaContrato/Obter/{bc_contract_id}` (sem filtro de periodo, para pegar todas as faturas)
-   - Verificar no array `Faturas` se existe alguma com `DataCompetencia >= competencia_corte` e (`Quitado == true` ou `DataPagamento != null` ou `ValorPagamento > 0`)
-   - Se sim: status = `blocked_paid_future`
-   - Se nao: status = `ok_to_close`
-   - Logar em `bc_sync_log` com action = `dry_close_check`
+- **Pular o dry-run individual**: Para o modo `execute=true`, encerrar diretamente sem fase de pre-verificacao separada (a verificacao de faturas pagas ja e feita inline antes de cada encerramento)
+- **Processar em batches com offset**: A function processa ate 50 contratos por chamada, retornando o proximo offset para continuar
+- **Loop de chamadas**: Chamar a function repetidamente via curl ate que todos os contratos sejam processados
 
-4. Se `execute == false` (dry-run): retornar relatorio sem executar nada
+### Detalhes Tecnicos
 
-5. Se `execute == true`: para cada contrato `ok_to_close`:
-   - DELETE `/integracao/VendaContrato/Encerrar/{bc_contract_id}` com body:
-     ```text
-     {
-       "DataCompetencia": "2026-03-01 00:00:00",
-       "Motivo": "Encerramento para migracao contrato unico Contmax"
-     }
-     ```
-   - Se HTTP 200-204: atualizar `bc_contracts` com `active = false`, `closed_at = now()`, `closed_competencia = competencia_corte`
-   - Logar em `bc_sync_log` com action = `execute_close`
+Arquivo modificado: `supabase/functions/close-bomcontrole-contracts/index.ts`
 
-**Reutiliza do sync-bomcontrole:** `getApiKey()`, `fetchWithRetry()`, `sanitizeForLog()`, `logAction()` (reimplementados no novo arquivo, pois edge functions sao isoladas).
+Mudancas principais:
+- `BATCH_SIZE`: de 20 para 50
+- Novo `DELAY_MS = 600` entre chamadas a API
+- `fetchWithRetry` passa a tratar 429 com backoff (espera 3s, 6s, 9s)
+- Novo parametro `offset` no body para paginacao
+- Resposta inclui `next_offset` quando ha mais contratos a processar
+- Modo execute faz verificacao + encerramento em uma unica passada por contrato (reduz chamadas API pela metade)
 
-**Retorno:**
-```text
-{
-  "summary": {
-    "total_analisados": 25,
-    "total_ok": 18,
-    "total_bloqueados": 5,
-    "total_encerrados": 18,  // (somente se execute=true)
-    "total_falhas": 2        // (somente se execute=true)
-  },
-  "details": [
-    { "bc_contract_id": 123, "portal_company_id": "...", "status": "closed", ... },
-    { "bc_contract_id": 456, "portal_company_id": "...", "status": "blocked_paid_future", ... }
-  ]
-}
-```
-
-### 3. Resumo de arquivos
-
-| Acao | Arquivo |
-|------|---------|
-| Migrar | `supabase/migrations/...` (ADD COLUMN legacy, closed_at, closed_competencia) |
-| Criar | `supabase/functions/close-bomcontrole-contracts/index.ts` |
-| Editar | `supabase/config.toml` (adicionar secao da nova function) |
-
-Nao ha alteracoes de UI -- esta function sera chamada manualmente via API ou futuramente via botao admin.
-
+Apos deploy, executarei a function em loop ate completar todos os 455 contratos.
