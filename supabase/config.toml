@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.run-integration]
 verify_jwt = false
+
+[functions.process-integration-job]
+verify_jwt = false
