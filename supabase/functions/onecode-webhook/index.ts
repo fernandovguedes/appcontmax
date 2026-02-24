@@ -134,6 +134,7 @@ serve(async (req) => {
             user_name: ticket?.user?.name ?? ticket?.userName ?? null,
             payload_json: body,
             organizacao_id: config.organizacaoId,
+            is_group: Boolean(ticket?.isGroup ?? false),
           };
 
           const { error: upsertError } = await supabase
