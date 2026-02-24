@@ -54,6 +54,9 @@ export default function Clientes() {
 
   const [search, setSearch] = useState("");
   const [regimeFilter, setRegimeFilter] = useState<RegimeTributario | "todos">("todos");
+  const [dataCadastroInicio, setDataCadastroInicio] = useState<Date | undefined>();
+  const [dataCadastroFim, setDataCadastroFim] = useState<Date | undefined>();
+  const [dataCadastroAplicado, setDataCadastroAplicado] = useState<{ inicio?: Date; fim?: Date } | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 50;
   const [formOpen, setFormOpen] = useState(false);
@@ -66,7 +69,21 @@ export default function Clientes() {
   const filtered = empresas.filter((e) => {
     const matchesSearch = e.nome.toLowerCase().includes(search.toLowerCase()) || e.cnpj.includes(search);
     const matchesRegime = regimeFilter === "todos" || e.regimeTributario === regimeFilter;
-    return matchesSearch && matchesRegime;
+
+    let matchesDataCadastro = true;
+    if (dataCadastroAplicado) {
+      const dc = e.dataCadastro;
+      if (dataCadastroAplicado.inicio) {
+        matchesDataCadastro = dc >= format(dataCadastroAplicado.inicio, "yyyy-MM-dd");
+      }
+      if (matchesDataCadastro && dataCadastroAplicado.fim) {
+        const nextDay = new Date(dataCadastroAplicado.fim);
+        nextDay.setDate(nextDay.getDate() + 1);
+        matchesDataCadastro = dc < format(nextDay, "yyyy-MM-dd");
+      }
+    }
+
+    return matchesSearch && matchesRegime && matchesDataCadastro;
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -74,7 +91,8 @@ export default function Clientes() {
   const paginatedEmpresas = filtered.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize);
 
   // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search, regimeFilter]);
+  useEffect(() => { setPage(1); }, [search, regimeFilter, dataCadastroAplicado]);
+  
 
   // Keep selectedEmpresa in sync with empresas state
   useEffect(() => {
@@ -157,7 +175,49 @@ export default function Clientes() {
               className="pl-9"
             />
           </div>
+          {/* Date range filter */}
+          <span className="text-sm text-muted-foreground font-medium">Cadastro:</span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn("w-[140px] justify-start text-left font-normal", !dataCadastroInicio && "text-muted-foreground")}>
+                <CalendarIcon className="mr-1 h-3.5 w-3.5" />
+                {dataCadastroInicio ? format(dataCadastroInicio, "dd/MM/yyyy") : "Data inicial"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={dataCadastroInicio} onSelect={setDataCadastroInicio} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn("w-[140px] justify-start text-left font-normal", !dataCadastroFim && "text-muted-foreground")}>
+                <CalendarIcon className="mr-1 h-3.5 w-3.5" />
+                {dataCadastroFim ? format(dataCadastroFim, "dd/MM/yyyy") : "Data final"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={dataCadastroFim} onSelect={setDataCadastroFim} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+          <Button size="sm" variant="secondary" onClick={() => { if (dataCadastroInicio || dataCadastroFim) setDataCadastroAplicado({ inicio: dataCadastroInicio, fim: dataCadastroFim }); }} disabled={!dataCadastroInicio && !dataCadastroFim}>
+            Aplicar
+          </Button>
+          {dataCadastroAplicado && (
+            <Button size="sm" variant="ghost" onClick={() => { setDataCadastroAplicado(null); setDataCadastroInicio(undefined); setDataCadastroFim(undefined); }}>
+              Limpar
+            </Button>
+          )}
         </div>
+
+        {dataCadastroAplicado && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Filter className="h-3.5 w-3.5" />
+            <span>Filtro ativo:</span>
+            <span className="bg-muted rounded px-2 py-0.5">
+              Cadastro: {dataCadastroAplicado.inicio ? format(dataCadastroAplicado.inicio, "dd/MM/yyyy") : "∞"} — {dataCadastroAplicado.fim ? format(dataCadastroAplicado.fim, "dd/MM/yyyy") : "∞"}
+            </span>
+          </div>
+        )}
 
         <div className="rounded-xl border bg-card overflow-x-auto shadow-sm table-zebra">
           <Table>
