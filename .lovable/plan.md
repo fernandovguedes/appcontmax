@@ -1,59 +1,45 @@
 
 
-## Corrigir sincronizacao que nunca sai do status "Executando"
+## Corrigir identificacao do atendente no scoring de tickets
 
 ### Problema
 
-A Edge Function usa `EdgeRuntime.waitUntil()` para processar em background, mas o runtime esta encerrando a funcao antes que o processamento termine. Os logs mostram um evento "shutdown" no meio da paginacao, e a atualizacao final do `sync_jobs` (para status "success") nunca acontece. Resultado: o frontend faz polling infinito e o botao fica travado em "Sincronizando...".
+A funcao de scoring busca o primeiro `from_me` message para identificar o atendente. Porem, as primeiras mensagens `from_me` sao do bot automatizado (menu de opcoes), que nao possui `user_id` nem `user_name`. Isso faz o sistema cair no fallback "Atendente" ao inves de identificar o usuario real.
 
-### Causa Raiz
+No ticket 26446, o atendente real era **Aratau** (user_id: 4), mas foi salvo como "Atendente" com user_id null.
 
-O `EdgeRuntime.waitUntil` nao esta garantindo que a promise complete antes do shutdown. Em funcoes com processamento longo (71+ paginas, ~5 min), o runtime pode derrubar a instancia.
+### Solucao
 
-### Solucao (3 partes)
+#### 1. Corrigir a logica de identificacao do atendente
 
-#### 1. Edge Function: processar de forma sincrona (nao usar waitUntil)
+No arquivo `supabase/functions/onecode-score-ticket/index.ts`, alterar a busca para filtrar apenas mensagens `from_me` que tenham `user_id` preenchido (nao nulo), ignorando mensagens de bot:
 
-Alterar a edge function para **processar sincronamente** antes de retornar a resposta. Como o frontend ja faz polling no `sync_jobs`, nao ha necessidade de retornar imediatamente. A funcao vai:
-
-- Processar todas as paginas
-- Atualizar o status final para "success" ou "failed"
-- Retornar a resposta com o resultado final
-
-Isso elimina o problema do shutdown prematuro.
-
-#### 2. Frontend: adicionar timeout no polling
-
-No hook `useSyncAcessorias`, adicionar um timeout de 10 minutos no polling. Se o job nao finalizar nesse prazo:
-
-- Parar o polling
-- Mostrar mensagem de timeout
-- Desbloquear o botao
-
-Tambem melhorar o `fetchHistory` para buscar os ultimos 10 jobs (atualmente busca apenas 1).
-
-#### 3. Limpar jobs travados no banco
-
-Executar uma migration SQL para marcar como "timeout" todos os sync_jobs que estao com status "running" ha mais de 15 minutos.
-
-### Detalhes Tecnicos
-
-**Arquivo: `supabase/functions/sync-acessorias/index.ts`**
-- Remover o bloco `EdgeRuntime.waitUntil`
-- Chamar `await runSync(...)` diretamente
-- Retornar a resposta final apos o processamento
-
-**Arquivo: `src/hooks/useSyncAcessorias.ts`**
-- Adicionar constante `POLL_TIMEOUT_MS = 600_000` (10 min)
-- Usar `setTimeout` para limpar o polling se exceder o timeout
-- Alterar `fetchHistory` para `limit(10)` ao inves de `limit(1)`
-
-**Migration SQL:**
 ```text
-UPDATE sync_jobs
-SET status = 'timeout',
-    finished_at = now()
-WHERE status = 'running'
-  AND started_at < now() - interval '15 minutes';
+// Antes (pega bot):
+const attendantName = messages.find((m) => m.from_me)?.user_name || "Atendente";
+const attendantUserId = messages.find((m) => m.from_me)?.user_id || null;
+
+// Depois (ignora bot):
+const humanMsg = messages.find((m) => m.from_me && m.user_id);
+const attendantName = humanMsg?.user_name || "Atendente";
+const attendantUserId = humanMsg?.user_id || null;
 ```
+
+#### 2. Corrigir o score existente do ticket 26446
+
+Atualizar o registro na tabela `onecode_ticket_scores` para refletir o atendente correto:
+
+```text
+UPDATE onecode_ticket_scores
+SET user_id = '4', user_name = 'Aratau'
+WHERE ticket_id = '26446';
+```
+
+### Detalhes tecnicos
+
+**Arquivo editado:** `supabase/functions/onecode-score-ticket/index.ts`
+- Linha ~96-97: substituir `messages.find((m) => m.from_me)` por `messages.find((m) => m.from_me && m.user_id)`
+- Extrair em variavel `humanMsg` para evitar busca duplicada
+
+**Correcao de dados:** UPDATE direto no registro do ticket 26446
 
