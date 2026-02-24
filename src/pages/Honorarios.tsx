@@ -12,6 +12,12 @@ import { Input } from "@/components/ui/input";
 import { Search, Plus, Settings } from "lucide-react";
 import type { HonorarioEmpresa } from "@/hooks/useHonorarios";
 
+const MES_INDEX: Record<string, number> = {
+  janeiro: 0, fevereiro: 1, marco: 2, abril: 3,
+  maio: 4, junho: 5, julho: 6, agosto: 7,
+  setembro: 8, outubro: 9, novembro: 10, dezembro: 11,
+};
+
 export default function Honorarios() {
   const { canEdit } = useModulePermissions("honorarios-contmax");
   const {
@@ -26,9 +32,14 @@ export default function Honorarios() {
   const [salarioDialogOpen, setSalarioDialogOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<HonorarioEmpresa | null>(null);
 
-  const filtered = empresas.filter((e) =>
-    e.empresa_nome.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = empresas.filter((e) => {
+    if (!e.empresa_nome.toLowerCase().includes(search.toLowerCase())) return false;
+    if (mes !== "fechamento") {
+      const mesInicialIdx = MES_INDEX[e.mes_inicial || "janeiro"] ?? 0;
+      if (MES_INDEX[mes] < mesInicialIdx) return false;
+    }
+    return true;
+  });
 
   if (loading) return <LoadingSkeleton variant="portal" />;
 

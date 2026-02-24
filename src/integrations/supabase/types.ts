@@ -105,6 +105,7 @@ export type Database = {
           empresa_id: string
           fiscal_percentual: number
           id: string
+          mes_inicial: string
           meses: Json
           nao_emitir_boleto: boolean
           pessoal_valor: number
@@ -117,6 +118,7 @@ export type Database = {
           empresa_id: string
           fiscal_percentual?: number
           id?: string
+          mes_inicial?: string
           meses?: Json
           nao_emitir_boleto?: boolean
           pessoal_valor?: number
@@ -129,6 +131,7 @@ export type Database = {
           empresa_id?: string
           fiscal_percentual?: number
           id?: string
+          mes_inicial?: string
           meses?: Json
           nao_emitir_boleto?: boolean
           pessoal_valor?: number
