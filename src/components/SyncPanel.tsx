@@ -72,7 +72,7 @@ export function SyncPanel({ tenantSlug, tenantId, onSyncComplete }: SyncPanelPro
           )}
         </div>
 
-        {result && (
+      {result && (
           <div className="flex items-center gap-2 text-xs">
             <StatusBadgeSync status={result.status} />
             <span>Lidos: {result.total_read}</span>
@@ -80,6 +80,7 @@ export function SyncPanel({ tenantSlug, tenantId, onSyncComplete }: SyncPanelPro
             <span className="text-warning">~{result.total_updated}</span>
             <span className="text-muted-foreground">={result.total_skipped}</span>
             {result.total_errors > 0 && <span className="text-destructive">✕{result.total_errors}</span>}
+            {result.status === "running" && <span className="text-muted-foreground animate-pulse">• atualizando a cada 3s</span>}
           </div>
         )}
       </div>
