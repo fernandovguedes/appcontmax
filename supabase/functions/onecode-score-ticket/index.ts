@@ -7,108 +7,124 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function jsonResp(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
-
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResp({ error: "Method not allowed" }, 405);
   }
 
+  const t0 = Date.now();
+
   try {
-    // Validate auth - accept both user JWT and service_role key
+    // Auth: accept user JWT or service_role key
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResp({ error: "Unauthorized" }, 401);
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const isServiceRole = token === serviceRoleKey;
 
     if (!isServiceRole) {
-      // Validate as user JWT
       const anonClient = createClient(
         Deno.env.get("SUPABASE_URL")!,
         Deno.env.get("SUPABASE_ANON_KEY")!,
         { global: { headers: { Authorization: authHeader } } }
       );
-      const { data: claimsData, error: claimsError } = await anonClient.auth.getClaims(token);
-      if (claimsError || !claimsData?.claims) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      const { error: claimsError } = await anonClient.auth.getClaims(token);
+      if (claimsError) {
+        return jsonResp({ error: "Unauthorized" }, 401);
       }
     }
 
     const { ticket_id } = await req.json();
     if (!ticket_id) {
-      return new Response(JSON.stringify({ error: "ticket_id is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResp({ error: "ticket_id is required" }, 400);
     }
 
-    // Use service role for full access
+    console.log("Scoring ticket:", ticket_id);
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      serviceRoleKey
     );
 
-    // Fetch messages for the ticket (including organizacao_id)
+    // Fetch messages
     const { data: messages, error: msgError } = await supabase
       .from("onecode_messages_raw")
       .select("from_me, body, created_at_onecode, user_id, user_name, organizacao_id")
-      .eq("ticket_id", ticket_id)
+      .eq("ticket_id", String(ticket_id))
       .order("created_at_onecode", { ascending: true });
 
     if (msgError) throw new Error(msgError.message);
-    if (!messages || messages.length === 0) {
-      return new Response(JSON.stringify({ error: "No messages found for this ticket" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
-    // Get organizacao_id from the first message
-    const organizacaoId = messages[0].organizacao_id;
+    const organizacaoId = messages?.[0]?.organizacao_id;
+
+    // Not enough messages — save null score with reason
+    if (!messages || messages.length < 2) {
+      console.log("Insufficient messages:", messages?.length ?? 0);
+      const nullRow = {
+        ticket_id: String(ticket_id),
+        user_id: messages?.[0]?.from_me ? messages[0].user_id : null,
+        user_name: messages?.find((m) => m.from_me)?.user_name || null,
+        score_final: null,
+        feedback: `Mensagens insuficientes para avaliação (${messages?.length ?? 0} mensagens encontradas).`,
+        model_used: "skipped",
+        organizacao_id: organizacaoId || "00000000-0000-0000-0000-000000000000",
+      };
+      const { data: saved, error: saveErr } = await supabase
+        .from("onecode_ticket_scores")
+        .upsert(nullRow, { onConflict: "ticket_id" })
+        .select()
+        .single();
+      if (saveErr) throw new Error(saveErr.message);
+      return jsonResp({ ok: true, score: saved, skipped: true, reason: "insufficient_messages", elapsed_ms: Date.now() - t0 });
+    }
 
     // Build transcript
     const attendantName = messages.find((m) => m.from_me)?.user_name || "Atendente";
+    const attendantUserId = messages.find((m) => m.from_me)?.user_id || null;
     const transcript = messages
       .map((m) => {
-        const role = m.from_me ? `[ATENDENTE - ${attendantName}]` : "[CLIENTE]";
+        const role = m.from_me ? `ATENDENTE (${attendantName})` : "CLIENTE";
         return `${role}: ${m.body || "(mensagem sem texto)"}`;
       })
       .join("\n");
 
-    const attendantUserId = messages.find((m) => m.from_me)?.user_id || null;
+    console.log("Transcript built. Messages:", messages.length, "Chars:", transcript.length);
 
     // Call Lovable AI Gateway
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     const systemPrompt = `Você é um avaliador de qualidade de atendimento ao cliente via WhatsApp.
-Avalie a conversa a seguir nos 5 critérios abaixo, atribuindo notas de 0 a 10 (com 1 casa decimal).
-Gere também um feedback construtivo em português (máximo 200 palavras).
+Avalie a conversa a seguir nos 5 critérios abaixo, atribuindo notas de 0.0 a 10.0 (com 1 casa decimal).
 
 Critérios:
-1. Clareza - Comunicação clara e sem ambiguidade
-2. Cordialidade - Educação, empatia e tom amigável
-3. Objetividade - Foco na resolução sem divagações
-4. Resolução - Efetividade em resolver o problema do cliente
-5. Conformidade - Profissionalismo e aderência a boas práticas
+1. clareza - Comunicação clara e sem ambiguidade
+2. cordialidade - Educação, empatia e tom amigável
+3. objetividade - Foco na resolução sem divagações
+4. resolucao - Efetividade em resolver o problema do cliente
+5. profissionalismo - Aderência a boas práticas e postura profissional
 
-Considere: se o atendente não respondeu ou houve apenas mensagens do cliente, atribua notas baixas.`;
+Regras:
+- Se o atendente não respondeu ou houve apenas mensagens do cliente, atribua notas baixas.
+- score_final = (clareza*0.25 + cordialidade*0.15 + objetividade*0.20 + resolucao*0.30 + profissionalismo*0.10) * 10, arredondado para 1 decimal.
+- feedback: texto curto (máximo 150 palavras) em português.
+- pontos_fortes: lista de 1-3 pontos fortes observados.
+- pontos_melhoria: lista de 1-3 pontos a melhorar.`;
 
+    const aiT0 = Date.now();
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -126,18 +142,21 @@ Considere: se o atendente não respondeu ou houve apenas mensagens do cliente, a
             type: "function",
             function: {
               name: "submit_evaluation",
-              description: "Submit the evaluation scores and feedback for the customer service conversation.",
+              description: "Submit the structured evaluation scores and feedback.",
               parameters: {
                 type: "object",
                 properties: {
-                  clareza: { type: "number", description: "Score 0-10 for clarity" },
-                  cordialidade: { type: "number", description: "Score 0-10 for cordiality" },
-                  objetividade: { type: "number", description: "Score 0-10 for objectivity" },
-                  resolucao: { type: "number", description: "Score 0-10 for resolution" },
-                  conformidade: { type: "number", description: "Score 0-10 for compliance/professionalism" },
-                  feedback: { type: "string", description: "Constructive feedback in Portuguese, max 200 words" },
+                  clareza: { type: "number", description: "Score 0-10" },
+                  cordialidade: { type: "number", description: "Score 0-10" },
+                  objetividade: { type: "number", description: "Score 0-10" },
+                  resolucao: { type: "number", description: "Score 0-10" },
+                  profissionalismo: { type: "number", description: "Score 0-10" },
+                  score_final: { type: "number", description: "Weighted score 0-100" },
+                  feedback: { type: "string", description: "Short constructive feedback in Portuguese" },
+                  pontos_fortes: { type: "array", items: { type: "string" }, description: "1-3 strengths" },
+                  pontos_melhoria: { type: "array", items: { type: "string" }, description: "1-3 improvements" },
                 },
-                required: ["clareza", "cordialidade", "objetividade", "resolucao", "conformidade", "feedback"],
+                required: ["clareza", "cordialidade", "objetividade", "resolucao", "profissionalismo", "score_final", "feedback", "pontos_fortes", "pontos_melhoria"],
                 additionalProperties: false,
               },
             },
@@ -147,25 +166,20 @@ Considere: se o atendente não respondeu ou houve apenas mensagens do cliente, a
       }),
     });
 
+    const aiElapsed = Date.now() - aiT0;
+
     if (!aiResponse.ok) {
       const errText = await aiResponse.text();
       console.error("AI Gateway error:", aiResponse.status, errText);
-      if (aiResponse.status === 429) {
-        return new Response(JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (aiResponse.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos insuficientes. Adicione créditos ao workspace." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      if (aiResponse.status === 429) return jsonResp({ error: "Rate limit exceeded. Try again later." }, 429);
+      if (aiResponse.status === 402) return jsonResp({ error: "Insufficient credits." }, 402);
       throw new Error(`AI Gateway error: ${aiResponse.status}`);
     }
 
     const aiData = await aiResponse.json();
+    const usage = aiData.usage;
+    console.log("AI response received. Elapsed:", aiElapsed, "ms. Tokens:", JSON.stringify(usage ?? "N/A"));
+
     const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall?.function?.arguments) {
       throw new Error("AI did not return structured evaluation");
@@ -175,47 +189,61 @@ Considere: se o atendente não respondeu ou houve apenas mensagens do cliente, a
       ? JSON.parse(toolCall.function.arguments)
       : toolCall.function.arguments;
 
-    // Calculate weighted score
-    const score_final =
-      (evaluation.clareza * 0.25 +
-        evaluation.cordialidade * 0.15 +
-        evaluation.objetividade * 0.20 +
-        evaluation.resolucao * 0.30 +
-        evaluation.conformidade * 0.10) *
-      10;
+    // Validate ranges
+    const clamp = (v: unknown, min: number, max: number): number => {
+      const n = Number(v);
+      if (isNaN(n)) return 0;
+      return Math.round(Math.min(Math.max(n, min), max) * 10) / 10;
+    };
+
+    const clareza = clamp(evaluation.clareza, 0, 10);
+    const cordialidade = clamp(evaluation.cordialidade, 0, 10);
+    const objetividade = clamp(evaluation.objetividade, 0, 10);
+    const resolucao = clamp(evaluation.resolucao, 0, 10);
+    const conformidade = clamp(evaluation.profissionalismo, 0, 10); // maps to DB column "conformidade"
+
+    // Recalculate to ensure consistency
+    const scoreFinal = Math.round(
+      (clareza * 0.25 + cordialidade * 0.15 + objetividade * 0.20 + resolucao * 0.30 + conformidade * 0.10) * 100
+    ) / 10;
 
     const scoreRow = {
-      ticket_id,
+      ticket_id: String(ticket_id),
       user_id: attendantUserId,
       user_name: attendantName,
-      clareza: Math.round(evaluation.clareza * 10) / 10,
-      cordialidade: Math.round(evaluation.cordialidade * 10) / 10,
-      objetividade: Math.round(evaluation.objetividade * 10) / 10,
-      resolucao: Math.round(evaluation.resolucao * 10) / 10,
-      conformidade: Math.round(evaluation.conformidade * 10) / 10,
-      score_final: Math.round(score_final * 10) / 10,
-      feedback: evaluation.feedback,
+      clareza,
+      cordialidade,
+      objetividade,
+      resolucao,
+      conformidade,
+      score_final: scoreFinal,
+      feedback: String(evaluation.feedback || "").slice(0, 2000),
+      pontos_fortes: Array.isArray(evaluation.pontos_fortes) ? evaluation.pontos_fortes.map(String).slice(0, 5) : [],
+      pontos_melhoria: Array.isArray(evaluation.pontos_melhoria) ? evaluation.pontos_melhoria.map(String).slice(0, 5) : [],
       model_used: "google/gemini-3-flash-preview",
       organizacao_id: organizacaoId,
     };
 
     const { data: inserted, error: insertError } = await supabase
       .from("onecode_ticket_scores")
-      .upsert(scoreRow, { onConflict: "ticket_id", ignoreDuplicates: true })
+      .upsert(scoreRow, { onConflict: "ticket_id" })
       .select()
       .single();
 
     if (insertError) throw new Error(insertError.message);
 
-    return new Response(JSON.stringify({ ok: true, score: inserted }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const totalElapsed = Date.now() - t0;
+    console.log("Score saved. Total elapsed:", totalElapsed, "ms. AI elapsed:", aiElapsed, "ms. Tokens:", JSON.stringify(usage ?? "N/A"));
+
+    return jsonResp({
+      ok: true,
+      score: inserted,
+      timing: { total_ms: totalElapsed, ai_ms: aiElapsed },
+      tokens: usage ?? null,
     });
   } catch (e) {
-    console.error("Score error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const totalElapsed = Date.now() - t0;
+    console.error("Score error:", e, "Elapsed:", totalElapsed, "ms");
+    return jsonResp({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
   }
 });

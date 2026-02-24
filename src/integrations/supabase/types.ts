@@ -276,6 +276,8 @@ export type Database = {
           model_used: string | null
           objetividade: number | null
           organizacao_id: string
+          pontos_fortes: string[] | null
+          pontos_melhoria: string[] | null
           resolucao: number | null
           score_final: number | null
           scored_at: string
@@ -293,6 +295,8 @@ export type Database = {
           model_used?: string | null
           objetividade?: number | null
           organizacao_id: string
+          pontos_fortes?: string[] | null
+          pontos_melhoria?: string[] | null
           resolucao?: number | null
           score_final?: number | null
           scored_at?: string
@@ -310,6 +314,8 @@ export type Database = {
           model_used?: string | null
           objetividade?: number | null
           organizacao_id?: string
+          pontos_fortes?: string[] | null
+          pontos_melhoria?: string[] | null
           resolucao?: number | null
           score_final?: number | null
           scored_at?: string
