@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
         if (!sendRes.ok) {
           status = "error";
         } else {
-          ticketId = responseRaw?.ticketId || responseRaw?.ticket_id || null;
+          ticketId = responseRaw?.ticketId || responseRaw?.ticket_id || responseRaw?.message?.ticketId || null;
         }
       } catch (fetchErr) {
         status = "error";
