@@ -34,7 +34,8 @@ function IntegrationCard({
   latestJob?: any;
 }) {
   const provider = integration.providerData;
-  const name = provider?.name ?? integration.provider;
+  const baseName = provider?.name ?? integration.provider;
+  const name = integration.tenantName ? `${baseName} ${integration.tenantName}` : baseName;
   const category = provider?.category ?? "general";
 
   const isProcessing = !!activeJob;
