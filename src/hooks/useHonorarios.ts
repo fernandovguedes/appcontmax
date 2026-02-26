@@ -54,7 +54,8 @@ export function useHonorarios() {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const contmaxOrgId = "d84e2150-0ae0-4462-880c-da8cec89e96a";
+  // ID fixo da organização Contmax — atualizar aqui se o org_id mudar no banco
+  const contmaxOrgId = import.meta.env.VITE_CONTMAX_ORG_ID ?? "d84e2150-0ae0-4462-880c-da8cec89e96a";
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -159,28 +160,39 @@ export function useHonorarios() {
   }, [toast]);
 
   const updateMesData = useCallback(async (id: string, mes: MesKey, field: keyof HonorarioMesData | Partial<HonorarioMesData>, value?: any) => {
+    let updatedMeses: Record<string, HonorarioMesData> | null = null;
+    let previousMeses: Record<string, HonorarioMesData> | null = null;
+
+    // Optimistic update — compute new state and snapshot previous for rollback
     setEmpresas((prev) => {
       const empresa = prev.find((e) => e.id === id);
       if (!empresa) return prev;
 
+      previousMeses = empresa.meses;
       const currentMes = empresa.meses[mes] ?? emptyMesData();
       const updates = typeof field === "object" ? field : { [field]: value };
       const updatedMes = { ...currentMes, ...updates };
-      const updatedMeses = { ...empresa.meses, [mes]: updatedMes };
+      updatedMeses = { ...empresa.meses, [mes]: updatedMes };
 
-      // Fire async update
-      supabase
-        .from("honorarios_empresas")
-        .update({ meses: updatedMeses } as any)
-        .eq("id", id)
-        .then(({ error }) => {
-          if (error) {
-            toast({ title: "Erro ao atualizar dados mensais", description: error.message, variant: "destructive" });
-          }
-        });
-
-      return prev.map((e) => (e.id === id ? { ...e, meses: updatedMeses } : e));
+      return prev.map((e) => (e.id === id ? { ...e, meses: updatedMeses! } : e));
     });
+
+    if (!updatedMeses) return;
+
+    // Async server update
+    const { error } = await supabase
+      .from("honorarios_empresas")
+      .update({ meses: updatedMeses } as any)
+      .eq("id", id);
+
+    if (error) {
+      // Rollback to previous state on failure
+      if (previousMeses !== null) {
+        const snapshot = previousMeses;
+        setEmpresas((prev) => prev.map((e) => (e.id === id ? { ...e, meses: snapshot } : e)));
+      }
+      toast({ title: "Erro ao atualizar dados mensais", description: error.message, variant: "destructive" });
+    }
   }, [toast]);
 
   const getMesData = useCallback((empresa: HonorarioEmpresa, mes: MesKey): HonorarioMesData => {

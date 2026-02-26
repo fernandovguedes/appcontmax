@@ -22,9 +22,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!supabaseUrl || !serviceRoleKey || !anonKey) {
+      return new Response(JSON.stringify({ error: "Missing required environment variables" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Validate user
     const userClient = createClient(supabaseUrl, anonKey, {
@@ -129,7 +135,7 @@ Deno.serve(async (req) => {
 
     // Fire-and-forget: trigger worker
     const workerUrl = `${supabaseUrl}/functions/v1/process-integration-job`;
-    fetch(workerUrl, {
+    const workerFetch = fetch(workerUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -137,6 +143,11 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({}),
     }).catch((err) => console.error("Failed to trigger worker:", err));
+    // @ts-ignore: EdgeRuntime.waitUntil keeps the promise alive after response is sent
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(workerFetch);
+    }
 
     return new Response(
       JSON.stringify({ job_id: newJob.id, status: "pending" }),

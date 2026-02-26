@@ -7,14 +7,16 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-onecode-secret, x-onecode-source, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// IDs das organizações por tenant — lidos de env vars com fallback para os valores atuais.
+// Para alterar, configure as env vars CONTMAX_ORG_ID e PG_ORG_ID no painel do Supabase.
 const SOURCE_CONFIG: Record<string, { secretEnv: string; organizacaoId: string }> = {
   contmax: {
     secretEnv: "ONECODE_WEBHOOK_SECRET",
-    organizacaoId: "d84e2150-0ae0-4462-880c-da8cec89e96a",
+    organizacaoId: Deno.env.get("CONTMAX_ORG_ID") ?? "d84e2150-0ae0-4462-880c-da8cec89e96a",
   },
   pg: {
     secretEnv: "ONECODE_WEBHOOK_SECRET_PG",
-    organizacaoId: "30e6da4c-ed58-47ce-8a83-289b58ca15ab",
+    organizacaoId: Deno.env.get("PG_ORG_ID") ?? "30e6da4c-ed58-47ce-8a83-289b58ca15ab",
   },
 };
 

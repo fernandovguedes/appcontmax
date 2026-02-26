@@ -264,8 +264,12 @@ async function processTenant(
     .eq("provider", "acessorias")
     .single();
 
-  const baseUrl = integration?.base_url || "https://api.acessorias.com";
-  if (integration && !integration.is_enabled) {
+  if (!integration?.base_url) {
+    console.log(`[sync-cron] base_url não configurado para '${tenantSlug}', abortando`);
+    return { status: "skipped", reason: "base_url_not_configured" };
+  }
+  const baseUrl = integration.base_url;
+  if (!integration.is_enabled) {
     console.log(`[sync-cron] Integration disabled for '${tenantSlug}', skipping`);
     return { status: "skipped", reason: "integration_disabled" };
   }
@@ -307,8 +311,14 @@ Deno.serve(async (req) => {
   console.log(`[sync-cron] Invoked at ${new Date().toISOString()}`);
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return new Response(
+        JSON.stringify({ error: "Missing required environment variables" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const results: Record<string, unknown> = {};

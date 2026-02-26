@@ -20,8 +20,14 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRoleKey) {
+    return new Response(JSON.stringify({ error: "Missing required environment variables" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
   try {
@@ -165,7 +171,7 @@ Deno.serve(async (req) => {
 
     // Fire-and-forget: the delegated function will finalize the job,
     // update tenant_integrations, log to integration_logs, and retrigger the worker.
-    fetch(fnUrl, {
+    const delegateFetch = fetch(fnUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -175,6 +181,11 @@ Deno.serve(async (req) => {
     }).catch((err) => {
       console.error(`[job:${job.id}] Fire-and-forget fetch error:`, err);
     });
+    // @ts-ignore: EdgeRuntime.waitUntil keeps the promise alive after response is sent
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(delegateFetch);
+    }
 
     return new Response(
       JSON.stringify({ status: "delegated", job_id: job.id }),

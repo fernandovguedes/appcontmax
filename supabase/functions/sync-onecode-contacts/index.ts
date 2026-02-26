@@ -73,6 +73,12 @@ async function fetchWithRetry(
     try {
       const res = await fetch(url, options);
       if (res.ok) return res;
+      if (res.status === 429 && i < retries) {
+        const waitMs = 5000 * (i + 1);
+        console.log(`[sync-onecode-contacts] 429 recebido, aguardando ${waitMs / 1000}s antes de tentar novamente (${i + 1}/${retries})`);
+        await new Promise((r) => setTimeout(r, waitMs));
+        continue;
+      }
       if (i === retries) return res;
     } catch (err) {
       if (i === retries) throw err;
@@ -88,9 +94,15 @@ Deno.serve(async (req) => {
   }
 
   const startTime = Date.now();
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!supabaseUrl || !serviceKey || !anonKey) {
+    return new Response(JSON.stringify({ error: "Missing required environment variables" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   // Auth check
   const authHeader = req.headers.get("Authorization");

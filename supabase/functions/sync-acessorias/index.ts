@@ -258,13 +258,20 @@ async function finalizeIntegrationJob(
   });
 
   // Retrigger worker
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  fetch(`${supabaseUrl}/functions/v1/process-integration-job`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` },
-    body: JSON.stringify({}),
-  }).catch((err) => console.error("[sync-acessorias] Failed to retrigger worker:", err));
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (supabaseUrl && serviceRoleKey) {
+    const retriggerFetch = fetch(`${supabaseUrl}/functions/v1/process-integration-job`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` },
+      body: JSON.stringify({}),
+    }).catch((err) => console.error("[sync-acessorias] Failed to retrigger worker:", err));
+    // @ts-ignore: EdgeRuntime.waitUntil keeps the promise alive after response is sent
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(retriggerFetch);
+    }
+  }
 
   console.log(`[sync-acessorias] Integration job ${integrationJobId} finalized — status=${status}, time=${executionTime}ms`);
 }
@@ -273,8 +280,12 @@ async function finalizeIntegrationJob(
  * Self-invoke to continue processing the next batch.
  */
 async function continueNextBatch(params: Record<string, any>) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error("[sync-acessorias] Missing env vars for continueNextBatch");
+    return;
+  }
   const url = `${supabaseUrl}/functions/v1/sync-acessorias`;
 
   console.log(`[sync-acessorias] Continuing with next batch — start_page=${params.start_page}`);
@@ -313,9 +324,15 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!supabaseUrl || !supabaseServiceKey || !anonKey) {
+      return new Response(
+        JSON.stringify({ error: "Missing required environment variables" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -405,8 +422,14 @@ Deno.serve(async (req) => {
       .eq("provider", "acessorias")
       .single();
 
-    const baseUrl = integration?.base_url || "https://api.acessorias.com";
-    if (integration && !integration.is_enabled) {
+    if (!integration?.base_url) {
+      return new Response(
+        JSON.stringify({ error: "Configuration error", detail: "base_url não configurado na integração" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const baseUrl = integration.base_url;
+    if (!integration.is_enabled) {
       return new Response(
         JSON.stringify({ error: "Integration disabled" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }

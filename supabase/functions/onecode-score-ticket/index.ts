@@ -32,11 +32,16 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!serviceRoleKey || !supabaseUrl || !supabaseAnonKey) {
+      return jsonResp({ error: "Missing required environment variables" }, 500);
+    }
     const isServiceRole = token === serviceRoleKey;
 
     if (!isServiceRole) {
-      const anonClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      const anonClient = createClient(supabaseUrl, supabaseAnonKey, {
         global: { headers: { Authorization: authHeader } },
       });
       const { error: claimsError } = await anonClient.auth.getClaims(token);
@@ -52,7 +57,7 @@ serve(async (req) => {
 
     console.log("Scoring ticket:", ticket_id);
 
-    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, serviceRoleKey);
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     // Fetch messages
     const { data: messages, error: msgError } = await supabase
