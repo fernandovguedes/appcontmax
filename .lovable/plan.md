@@ -1,66 +1,52 @@
 
-# Corrigir Erros do Job Queue de Integracoes
 
-## Problemas Identificados
+# Corrigir Erro na Integracao Acessorias
 
-### Problema 1: Worker nao consegue autenticar nas funcoes de sync
-O `process-integration-job` chama as funcoes de sync (sync-acessorias, sync-onecode-contacts, sync-bomcontrole) passando o `service_role_key` como Bearer token. Porem, essas funcoes validam o token como JWT de usuario (`getClaims` ou `getUser`), e o service role key nao e um JWT de usuario valido. Resultado: retorna "Unauthorized".
+## Problema Identificado
 
-### Problema 2: Campo enviado errado para sync-acessorias
-O worker envia `{ tenant_id, org_slug }` mas o sync-acessorias espera `{ tenant_slug }` (campo diferente).
+Quando o worker `process-integration-job` chama `sync-acessorias`, a funcao tenta inserir um registro em `sync_jobs` com `created_by_user_id: "system"`. Porem, essa coluna e do tipo UUID — "system" nao e um UUID valido. O insert falha silenciosamente, `job` retorna `null`, e `job!.id` causa o erro `TypeError: Cannot read properties of null (reading 'id')`.
 
-### Problema 3: Toast de erro no duplo-clique (409)
-Ao clicar "Executar" duas vezes rapido, a segunda chamada retorna 409 (job ja existe). O `supabase.functions.invoke` trata qualquer non-2xx como erro, mostrando o toast "Erro ao criar job". Deveria mostrar uma mensagem informativa em vez de erro.
-
----
+Alem disso, existem 2 jobs travados em status "pending" na tabela `integration_jobs` que impedem novas execucoes (retornam 409 Conflict).
 
 ## Solucao
 
-### 1. Adicionar bypass de autenticacao para chamadas internas (service role)
+### 1. Corrigir `sync-acessorias/index.ts` (linha 342)
 
-Nos 3 arquivos de sync, adicionar verificacao: se o Bearer token for o service role key, pular a validacao de JWT de usuario e prosseguir como chamada interna confiavel.
+Alterar o campo `created_by_user_id` para usar `null` quando a chamada e interna (userId === "system"):
 
-**Arquivos:**
-- `supabase/functions/sync-acessorias/index.ts`
-- `supabase/functions/sync-onecode-contacts/index.ts`
-- `supabase/functions/sync-bomcontrole/index.ts`
-
-Logica adicionada antes da validacao de JWT:
 ```text
-const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const token = authHeader.replace("Bearer ", "");
-const isInternalCall = (token === serviceRoleKey);
-
-if (!isInternalCall) {
-  // validacao JWT normal existente
-}
+Antes:  created_by_user_id: userId,
+Depois: created_by_user_id: userId === "system" ? null : userId,
 ```
 
-### 2. Corrigir campo tenant_slug no worker
+### 2. Limpar jobs travados via migracao
 
-No `process-integration-job/index.ts`, quando o provider e "acessorias", enviar `tenant_slug` (que e o campo que sync-acessorias espera) em vez de `org_slug`.
+Executar uma migracao SQL para marcar os 2 jobs pendentes como "error" com mensagem explicativa, liberando a fila para novas execucoes.
 
-### 3. Tratar 409 no hook useIntegrationJobs
+```text
+UPDATE integration_jobs 
+SET status = 'error', 
+    error_message = 'Cleanup: job stuck in pending due to sync-acessorias bug',
+    finished_at = now()
+WHERE status = 'pending';
+```
 
-No `src/hooks/useIntegrationJobs.ts`, tratar a resposta 409 como informativa:
-- Em vez de mostrar toast de erro, mostrar toast informativo: "Ja existe uma execucao em andamento"
-- Retornar os dados do response (que contem o job_id existente)
+### 3. Re-deploy da edge function
 
----
+Fazer deploy do `sync-acessorias` com a correcao.
 
-## Arquivos Modificados
+## Arquivos
 
 | Arquivo | Alteracao |
 |---------|----------|
-| `supabase/functions/sync-acessorias/index.ts` | Bypass de auth para service role key |
-| `supabase/functions/sync-onecode-contacts/index.ts` | Bypass de auth para service role key |
-| `supabase/functions/sync-bomcontrole/index.ts` | Verificar se precisa bypass (pode nao ter auth check) |
-| `supabase/functions/process-integration-job/index.ts` | Enviar `tenant_slug` em vez de `org_slug` |
-| `src/hooks/useIntegrationJobs.ts` | Tratar 409 como info, nao como erro |
+| `supabase/functions/sync-acessorias/index.ts` | Corrigir UUID null para chamadas internas |
+| Migracao SQL | Limpar jobs travados |
 
-## Ordem de Implementacao
+## Resultado
 
-1. Corrigir as 3 edge functions de sync (bypass interno)
-2. Corrigir o campo no worker
-3. Corrigir o hook do frontend
-4. Re-deploy das edge functions
+Apos as correcoes, o fluxo completo sera:
+1. Clicar "Executar" cria job em integration_jobs (pending)
+2. Worker processa o job, chama sync-acessorias
+3. sync-acessorias cria sync_job com created_by_user_id = null
+4. Sincronizacao executa normalmente
+5. Status atualiza em tempo real no frontend
