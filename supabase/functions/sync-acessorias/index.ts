@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 const THROTTLE_MS = 750;
+const BATCH_SIZE = 12; // ~60s per batch (12 pages × ~5s each), well within the ~150s wall clock limit
 
 async function sha256(text: string): Promise<string> {
   const data = new TextEncoder().encode(text);
@@ -43,7 +44,7 @@ interface SyncCounters {
   totalErrors: number;
 }
 
-async function updateJobProgress(
+async function updateSyncJobProgress(
   supabase: ReturnType<typeof createClient>,
   jobId: string,
   counters: SyncCounters,
@@ -57,166 +58,236 @@ async function updateJobProgress(
   }).eq("id", jobId);
 }
 
-async function runSync(
+/**
+ * Process a batch of pages. Returns the counters and whether there are more pages.
+ */
+async function processBatch(
   supabase: ReturnType<typeof createClient>,
-  jobId: string,
+  syncJobId: string,
   tenantId: string,
-  tenantSlug: string,
   apiToken: string,
   baseUrl: string,
-) {
-  const c: SyncCounters = { totalRead: 0, totalCreated: 0, totalUpdated: 0, totalSkipped: 0, totalErrors: 0 };
+  startPage: number,
+  prevCounters: SyncCounters,
+  integrationJobId: string | null,
+): Promise<{ counters: SyncCounters; nextPage: number | null; totalPages: number }> {
+  const c = { ...prevCounters };
+  let totalPages = 0;
 
   const logEntry = async (level: string, message: string, payload?: unknown) => {
     await supabase.from("sync_logs").insert({
-      sync_job_id: jobId,
+      sync_job_id: syncJobId,
       level,
       message,
       payload: payload ? JSON.parse(JSON.stringify(payload)) : null,
     });
   };
 
-  try {
-    let page = 1;
-    let hasMore = true;
+  let page = startPage;
+  const endPage = startPage + BATCH_SIZE;
 
-    while (hasMore) {
-      await sleep(THROTTLE_MS);
+  while (page < endPage) {
+    await sleep(THROTTLE_MS);
 
-      const apiUrl = `${baseUrl}/companies/ListAll?page=${page}`;
-      console.log(`[sync-acessorias] Fetching ${apiUrl}`);
-      const res = await fetch(apiUrl, {
-        headers: { Authorization: `Bearer ${apiToken}` },
-      });
+    const apiUrl = `${baseUrl}/companies/ListAll?page=${page}`;
+    console.log(`[sync-acessorias] Fetching ${apiUrl}`);
+    const res = await fetch(apiUrl, {
+      headers: { Authorization: `Bearer ${apiToken}` },
+    });
 
-      if (!res.ok) {
-        const errText = await res.text();
-        await logEntry("error", `API error page ${page}: ${res.status}`, { body: errText });
-        c.totalErrors++;
-        break;
-      }
+    if (!res.ok) {
+      const errText = await res.text();
+      await logEntry("error", `API error page ${page}: ${res.status}`, { body: errText });
+      c.totalErrors++;
+      return { counters: c, nextPage: null, totalPages };
+    }
 
-      const data = await res.json();
+    const data = await res.json();
 
-      const companies = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.data) ? data.data
-        : Array.isArray(data?.items) ? data.items
-        : [];
+    const companies = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.data) ? data.data
+      : Array.isArray(data?.items) ? data.items
+      : [];
 
-      if (companies.length === 0) {
-        hasMore = false;
-        break;
-      }
+    if (companies.length === 0) {
+      return { counters: c, nextPage: null, totalPages };
+    }
 
-      for (const company of companies) {
-        c.totalRead++;
-        try {
-          const rawKey = company.cnpj || company.cpf || company.identificador || company.document || "";
-          if (!rawKey) {
-            await logEntry("warning", "Empresa sem CNPJ/CPF, ignorada", { company });
-            c.totalSkipped++;
-            continue;
+    if (page === startPage || totalPages === 0) {
+      totalPages = data?.totalPages || data?.total_pages || 0;
+    }
+
+    for (const company of companies) {
+      c.totalRead++;
+      try {
+        const rawKey = company.cnpj || company.cpf || company.identificador || company.document || "";
+        if (!rawKey) {
+          await logEntry("warning", "Empresa sem CNPJ/CPF, ignorada", { company });
+          c.totalSkipped++;
+          continue;
+        }
+
+        const formattedKey = formatCnpj(rawKey);
+        const nome = company.razaoSocial || company.razao_social || company.nome || company.name || "Sem nome";
+        const sortedJson = JSON.stringify(company, Object.keys(company).sort());
+        const hash = await sha256(sortedJson);
+
+        const { data: existing } = await supabase
+          .from("empresas")
+          .select("id, hash_payload")
+          .eq("organizacao_id", tenantId)
+          .eq("cnpj", formattedKey)
+          .maybeSingle();
+
+        if (!existing) {
+          const { error: insertErr } = await supabase.from("empresas").insert({
+            organizacao_id: tenantId,
+            cnpj: formattedKey,
+            nome,
+            regime_tributario: company.regimeTributario || "simples_nacional",
+            emite_nota_fiscal: true,
+            meses: {},
+            obrigacoes: {},
+            socios: [],
+            external_source: "acessorias",
+            external_key: normalizeKey(rawKey),
+            raw_payload: company,
+            hash_payload: hash,
+            synced_at: new Date().toISOString(),
+          });
+          if (insertErr) {
+            await logEntry("error", `Insert failed: ${formattedKey}`, { error: insertErr.message });
+            c.totalErrors++;
+          } else {
+            c.totalCreated++;
           }
-
-          const formattedKey = formatCnpj(rawKey);
-          const nome = company.razaoSocial || company.razao_social || company.nome || company.name || "Sem nome";
-          const sortedJson = JSON.stringify(company, Object.keys(company).sort());
-          const hash = await sha256(sortedJson);
-
-          const { data: existing } = await supabase
+        } else if (existing.hash_payload !== hash) {
+          const { error: updateErr } = await supabase
             .from("empresas")
-            .select("id, hash_payload")
-            .eq("organizacao_id", tenantId)
-            .eq("cnpj", formattedKey)
-            .maybeSingle();
-
-          if (!existing) {
-            const { error: insertErr } = await supabase.from("empresas").insert({
-              organizacao_id: tenantId,
-              cnpj: formattedKey,
+            .update({
               nome,
-              regime_tributario: company.regimeTributario || "simples_nacional",
-              emite_nota_fiscal: true,
-              meses: {},
-              obrigacoes: {},
-              socios: [],
               external_source: "acessorias",
               external_key: normalizeKey(rawKey),
               raw_payload: company,
               hash_payload: hash,
               synced_at: new Date().toISOString(),
-            });
-            if (insertErr) {
-              await logEntry("error", `Insert failed: ${formattedKey}`, { error: insertErr.message });
-              c.totalErrors++;
-            } else {
-              c.totalCreated++;
-            }
-          } else if (existing.hash_payload !== hash) {
-            const { error: updateErr } = await supabase
-              .from("empresas")
-              .update({
-                nome,
-                external_source: "acessorias",
-                external_key: normalizeKey(rawKey),
-                raw_payload: company,
-                hash_payload: hash,
-                synced_at: new Date().toISOString(),
-              })
-              .eq("id", existing.id);
-            if (updateErr) {
-              await logEntry("error", `Update failed: ${formattedKey}`, { error: updateErr.message });
-              c.totalErrors++;
-            } else {
-              c.totalUpdated++;
-            }
+            })
+            .eq("id", existing.id);
+          if (updateErr) {
+            await logEntry("error", `Update failed: ${formattedKey}`, { error: updateErr.message });
+            c.totalErrors++;
           } else {
-            c.totalSkipped++;
+            c.totalUpdated++;
           }
-        } catch (companyErr) {
-          c.totalErrors++;
-          await logEntry("error", `Error processing company`, { error: String(companyErr), company });
+        } else {
+          c.totalSkipped++;
         }
-      }
-
-      await logEntry("info", `Page ${page} processed: ${companies.length} companies`);
-      
-      // Update progress after each page so frontend polling sees real-time counters
-      await updateJobProgress(supabase, jobId, c);
-
-      const totalPages = data?.totalPages || data?.total_pages;
-      if (totalPages && page >= totalPages) {
-        hasMore = false;
-      } else {
-        page++;
+      } catch (companyErr) {
+        c.totalErrors++;
+        await logEntry("error", `Error processing company`, { error: String(companyErr), company });
       }
     }
 
-    await supabase.from("sync_jobs").update({
-      status: "success",
-      total_read: c.totalRead,
-      total_created: c.totalCreated,
-      total_updated: c.totalUpdated,
-      total_skipped: c.totalSkipped,
-      total_errors: c.totalErrors,
-      finished_at: new Date().toISOString(),
-    }).eq("id", jobId);
-  } catch (syncErr) {
-    await supabase.from("sync_jobs").update({
-      status: "failed",
-      total_read: c.totalRead,
-      total_created: c.totalCreated,
-      total_updated: c.totalUpdated,
-      total_skipped: c.totalSkipped,
-      total_errors: c.totalErrors,
-      finished_at: new Date().toISOString(),
-      error_message: String(syncErr),
-    }).eq("id", jobId);
-    await logEntry("error", "Sync failed", { error: String(syncErr) });
+    await logEntry("info", `Page ${page} processed: ${companies.length} companies`);
+    await updateSyncJobProgress(supabase, syncJobId, c);
+
+    // Update integration_job progress (50-95% range)
+    if (integrationJobId && totalPages > 0) {
+      const pct = Math.min(95, 50 + Math.round((page / totalPages) * 45));
+      await supabase.from("integration_jobs").update({ progress: pct }).eq("id", integrationJobId);
+    }
+
+    if (totalPages && page >= totalPages) {
+      return { counters: c, nextPage: null, totalPages };
+    }
+
+    page++;
   }
 
-  console.log(`[sync-acessorias] Sync complete: read=${c.totalRead} created=${c.totalCreated} updated=${c.totalUpdated} skipped=${c.totalSkipped} errors=${c.totalErrors}`);
+  // More pages to process
+  return { counters: c, nextPage: page, totalPages };
+}
+
+/**
+ * Finalize the integration_job, update tenant_integrations, log to integration_logs,
+ * and retrigger the worker to drain the queue.
+ */
+async function finalizeIntegrationJob(
+  supabase: ReturnType<typeof createClient>,
+  integrationJobId: string,
+  tenantIntegrationId: string | null,
+  tenantId: string,
+  startTime: number,
+  success: boolean,
+  errorMsg: string | null,
+  counters: SyncCounters,
+) {
+  const status = success ? "success" : "error";
+  const executionTime = Date.now() - startTime;
+
+  await supabase.from("integration_jobs").update({
+    status,
+    progress: success ? 100 : 0,
+    error_message: errorMsg,
+    finished_at: new Date().toISOString(),
+    execution_time_ms: executionTime,
+    result: { ...counters },
+  }).eq("id", integrationJobId);
+
+  if (tenantIntegrationId) {
+    await supabase.from("tenant_integrations").update({
+      last_status: status,
+      last_error: errorMsg,
+    }).eq("id", tenantIntegrationId);
+  }
+
+  await supabase.from("integration_logs").insert({
+    tenant_id: tenantId,
+    integration: "acessorias",
+    provider_slug: "acessorias",
+    execution_id: crypto.randomUUID(),
+    status,
+    error_message: errorMsg,
+    execution_time_ms: executionTime,
+    total_processados: counters.totalRead,
+    total_matched: counters.totalCreated + counters.totalUpdated,
+    total_ignored: counters.totalSkipped,
+    total_review: 0,
+    response: { ...counters },
+  });
+
+  // Retrigger worker
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  fetch(`${supabaseUrl}/functions/v1/process-integration-job`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` },
+    body: JSON.stringify({}),
+  }).catch((err) => console.error("[sync-acessorias] Failed to retrigger worker:", err));
+
+  console.log(`[sync-acessorias] Integration job ${integrationJobId} finalized — status=${status}, time=${executionTime}ms`);
+}
+
+/**
+ * Self-invoke to continue processing the next batch.
+ */
+async function continueNextBatch(params: Record<string, any>) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const url = `${supabaseUrl}/functions/v1/sync-acessorias`;
+
+  console.log(`[sync-acessorias] Continuing with next batch — start_page=${params.start_page}`);
+
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` },
+      body: JSON.stringify(params),
+    });
+  } catch (err) {
+    console.error("[sync-acessorias] Failed to invoke next batch:", err);
+  }
 }
 
 Deno.serve(async (req) => {
@@ -228,7 +299,6 @@ Deno.serve(async (req) => {
   console.log(`[sync-acessorias] ${req.method} ${url.pathname}${url.search}`);
 
   if (req.method === "GET") {
-    console.log("[sync-acessorias] PING request received");
     return new Response(
       JSON.stringify({ ok: true, timestamp: new Date().toISOString() }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -250,7 +320,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized", detail: "Missing or invalid Authorization header." }),
+        JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -264,7 +334,6 @@ Deno.serve(async (req) => {
       const userClient = createClient(supabaseUrl, anonKey, {
         global: { headers: { Authorization: authHeader } },
       });
-
       const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
       if (claimsError || !claimsData?.claims) {
         return new Response(
@@ -277,25 +346,35 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const tenantSlug = body.tenant_slug;
-    console.log(`[sync-acessorias] POST sync request - tenant_slug: ${tenantSlug}, userId: ${userId}, internal: ${isInternalCall}`);
+    const integrationJobId = body.integration_job_id || null;
+    const tenantIntegrationId = body.tenant_integration_id || null;
+    const startPage: number = body.start_page || 1;
+    const syncJobId: string | null = body.sync_job_id || null;
+    const prevCounters: SyncCounters = body.counters || { totalRead: 0, totalCreated: 0, totalUpdated: 0, totalSkipped: 0, totalErrors: 0 };
+    const batchStartTime: number = body.batch_start_time || Date.now();
+
+    const isContinuation = startPage > 1 && syncJobId;
+
+    console.log(`[sync-acessorias] POST — tenant_slug=${tenantSlug}, start_page=${startPage}, continuation=${isContinuation}, integration_job_id=${integrationJobId}`);
 
     if (!tenantSlug || !["contmax", "pg"].includes(tenantSlug)) {
       return new Response(
-        JSON.stringify({ error: "Invalid tenant_slug", detail: `Received '${tenantSlug}'. Valid values: 'contmax', 'pg'` }),
+        JSON.stringify({ error: "Invalid tenant_slug" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    if (!isInternalCall) {
+    // Auth check only on first invocation
+    if (!isInternalCall && !isContinuation) {
       const { data: isAdmin } = await supabase.rpc("is_tenant_admin", {
         _user_id: userId,
         _tenant_slug: tenantSlug,
       });
       if (!isAdmin) {
         return new Response(
-          JSON.stringify({ error: "Forbidden", detail: `User is not admin for tenant '${tenantSlug}'.` }),
+          JSON.stringify({ error: "Forbidden" }),
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -334,32 +413,85 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: job } = await supabase.from("sync_jobs").insert({
-      tenant_id: tenantId,
-      provider: "acessorias",
-      entity: "companies",
-      status: "running",
-      created_by_user_id: userId === "system" ? null : userId,
-    }).select("id").single();
-    const jobId = job!.id;
+    // Create sync_job only on first invocation
+    let currentSyncJobId = syncJobId;
+    if (!currentSyncJobId) {
+      const { data: job } = await supabase.from("sync_jobs").insert({
+        tenant_id: tenantId,
+        provider: "acessorias",
+        entity: "companies",
+        status: "running",
+        created_by_user_id: userId === "system" ? null : userId,
+      }).select("id").single();
+      currentSyncJobId = job!.id;
+      console.log(`[sync-acessorias] Sync job ${currentSyncJobId} created.`);
+    }
 
-    console.log(`[sync-acessorias] Job ${jobId} created, processing synchronously.`);
+    // Process this batch
+    const result = await processBatch(
+      supabase, currentSyncJobId, tenantId, apiToken, baseUrl,
+      startPage, prevCounters, integrationJobId,
+    );
 
-    await runSync(supabase, jobId, tenantId, tenantSlug, apiToken, baseUrl);
+    if (result.nextPage !== null) {
+      // More pages — self-invoke for next batch (fire-and-forget)
+      console.log(`[sync-acessorias] Batch done (pages ${startPage}-${result.nextPage - 1}). Scheduling next batch starting at page ${result.nextPage}.`);
 
-    // Fetch final job status to return
-    const { data: finalJob } = await supabase.from("sync_jobs").select("*").eq("id", jobId).single();
+      // Fire-and-forget the next batch
+      continueNextBatch({
+        tenant_slug: tenantSlug,
+        tenant_id: tenantId,
+        integration_job_id: integrationJobId,
+        tenant_integration_id: tenantIntegrationId,
+        sync_job_id: currentSyncJobId,
+        start_page: result.nextPage,
+        counters: result.counters,
+        batch_start_time: batchStartTime,
+      });
+
+      return new Response(
+        JSON.stringify({
+          status: "batch_complete",
+          next_page: result.nextPage,
+          counters: result.counters,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // All pages done — finalize
+    console.log(`[sync-acessorias] All pages processed. Finalizing.`);
+    console.log(`[sync-acessorias] Sync complete: read=${result.counters.totalRead} created=${result.counters.totalCreated} updated=${result.counters.totalUpdated} skipped=${result.counters.totalSkipped} errors=${result.counters.totalErrors}`);
+
+    // Finalize sync_job
+    await supabase.from("sync_jobs").update({
+      status: "success",
+      total_read: result.counters.totalRead,
+      total_created: result.counters.totalCreated,
+      total_updated: result.counters.totalUpdated,
+      total_skipped: result.counters.totalSkipped,
+      total_errors: result.counters.totalErrors,
+      finished_at: new Date().toISOString(),
+    }).eq("id", currentSyncJobId);
+
+    // Finalize integration_job if present
+    if (integrationJobId) {
+      await finalizeIntegrationJob(
+        supabase, integrationJobId, tenantIntegrationId, tenantId,
+        batchStartTime, true, null, result.counters,
+      );
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        job_id: jobId,
-        status: finalJob?.status ?? "success",
-        total_read: finalJob?.total_read ?? 0,
-        total_created: finalJob?.total_created ?? 0,
-        total_updated: finalJob?.total_updated ?? 0,
-        total_skipped: finalJob?.total_skipped ?? 0,
-        total_errors: finalJob?.total_errors ?? 0,
+        job_id: currentSyncJobId,
+        status: "success",
+        total_read: result.counters.totalRead,
+        total_created: result.counters.totalCreated,
+        total_updated: result.counters.totalUpdated,
+        total_skipped: result.counters.totalSkipped,
+        total_errors: result.counters.totalErrors,
         message: "Sincronização concluída.",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

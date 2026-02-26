@@ -12,7 +12,7 @@ const FUNCTION_MAP: Record<string, string> = {
   onecode: "sync-onecode-contacts",
 };
 
-const STALE_RUNNING_MS = 10 * 60 * 1000; // 10 min
+const STALE_RUNNING_MS = 20 * 60 * 1000; // 20 min (sync-acessorias can take 10+ min)
 const STALE_PENDING_MS = 15 * 60 * 1000; // 15 min
 
 Deno.serve(async (req) => {
@@ -145,104 +145,39 @@ Deno.serve(async (req) => {
       .eq("id", job.id);
 
     const fnUrl = `${supabaseUrl}/functions/v1/${functionName}`;
-    let fnResponse: any = null;
-    let fnError: string | null = null;
 
-    try {
-      const fnBody: any = { tenant_id: job.tenant_id };
-      if (job.provider_slug === "acessorias") {
-        const { data: org } = await admin
-          .from("organizacoes")
-          .select("slug")
-          .eq("id", job.tenant_id)
-          .single();
-        if (org) fnBody.tenant_slug = org.slug;
-      }
-
-      console.log(`[job:${job.id}] Calling ${functionName}`);
-
-      const resp = await fetch(fnUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${serviceRoleKey}`,
-        },
-        body: JSON.stringify(fnBody),
-      });
-
-      fnResponse = await resp.json().catch(() => ({ status: resp.status }));
-
-      if (!resp.ok) {
-        fnError = fnResponse?.error ?? `HTTP ${resp.status}`;
-      }
-    } catch (e: any) {
-      fnError = e.message ?? "Unknown error";
-    }
-
-    // Progress 90%
-    await admin
-      .from("integration_jobs")
-      .update({ progress: 90 })
-      .eq("id", job.id);
-
-    const finalStatus = fnError ? "error" : "success";
-
-    // 7. Handle retry
-    if (fnError && (job.attempts ?? 0) + 1 < (job.max_attempts ?? 3)) {
-      console.log(`[job:${job.id}] Retrying — error: ${fnError}`);
-      await admin
-        .from("integration_jobs")
-        .update({
-          status: "pending",
-          progress: 0,
-          error_message: fnError,
-          started_at: null,
-        })
-        .eq("id", job.id);
-
-      // Immediately retrigger to process the retry
-      await retriggerWorker(supabaseUrl, serviceRoleKey);
-      return new Response(
-        JSON.stringify({ status: "retry", job_id: job.id, attempt: (job.attempts ?? 0) + 1 }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // 8. Finalize
-    console.log(`[job:${job.id}] Finalized — status=${finalStatus}`);
-    await finalizeJob(admin, job, finalStatus, fnError, startTime, fnResponse);
-
-    // Update tenant_integrations
-    await admin
-      .from("tenant_integrations")
-      .update({
-        last_status: finalStatus,
-        last_error: fnError,
-      })
-      .eq("id", ti.id);
-
-    // 9. Log to integration_logs for compatibility
-    const executionId = crypto.randomUUID();
-    await admin.from("integration_logs").insert({
+    // Build request body
+    const fnBody: any = {
       tenant_id: job.tenant_id,
-      integration: job.provider_slug,
-      provider_slug: job.provider_slug,
-      execution_id: executionId,
-      status: finalStatus,
-      error_message: fnError,
-      execution_time_ms: Date.now() - startTime,
-      total_processados: fnResponse?.total_processados ?? 0,
-      total_matched: fnResponse?.total_matched ?? 0,
-      total_ignored: fnResponse?.total_ignored ?? 0,
-      total_review: fnResponse?.total_review ?? 0,
-      response: fnResponse,
+      integration_job_id: job.id,
+      tenant_integration_id: ti.id,
+    };
+    if (job.provider_slug === "acessorias") {
+      const { data: org } = await admin
+        .from("organizacoes")
+        .select("slug")
+        .eq("id", job.tenant_id)
+        .single();
+      if (org) fnBody.tenant_slug = org.slug;
+    }
+
+    console.log(`[job:${job.id}] Delegating to ${functionName} (fire-and-forget)`);
+
+    // Fire-and-forget: the delegated function will finalize the job,
+    // update tenant_integrations, log to integration_logs, and retrigger the worker.
+    fetch(fnUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify(fnBody),
+    }).catch((err) => {
+      console.error(`[job:${job.id}] Fire-and-forget fetch error:`, err);
     });
 
-    // 10. Retrigger worker to drain remaining jobs
-    await retriggerWorker(supabaseUrl, serviceRoleKey);
-
     return new Response(
-      JSON.stringify({ status: finalStatus, job_id: job.id }),
+      JSON.stringify({ status: "delegated", job_id: job.id }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {
