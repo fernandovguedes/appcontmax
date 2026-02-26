@@ -180,6 +180,7 @@ Princípios obrigatórios:
 - Postura respeitosa e cordial
 - Não transferir insegurança ao cliente
 - Não deixar perguntas sem resposta
+- Se o cliente envia a mensagem via aúdio, e o atendente responde em áudio, não penalize o atendente 
 
 Critérios de avaliação (0 a 10):
 
