@@ -339,7 +339,7 @@ Deno.serve(async (req) => {
       provider: "acessorias",
       entity: "companies",
       status: "running",
-      created_by_user_id: userId,
+      created_by_user_id: userId === "system" ? null : userId,
     }).select("id").single();
     const jobId = job!.id;
 
