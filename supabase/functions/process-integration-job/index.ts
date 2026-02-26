@@ -12,7 +12,7 @@ const FUNCTION_MAP: Record<string, string> = {
   onecode: "sync-onecode-contacts",
 };
 
-const STALE_RUNNING_MS = 20 * 60 * 1000; // 20 min (sync-acessorias can take 10+ min)
+const STALE_RUNNING_MS = 45 * 60 * 1000; // 45 min (sync-acessorias can process 160+ pages across many batches)
 const STALE_PENDING_MS = 15 * 60 * 1000; // 15 min
 
 Deno.serve(async (req) => {
