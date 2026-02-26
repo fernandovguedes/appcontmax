@@ -93,12 +93,16 @@ export function useIntegrationJobs(tenantIds?: string[]) {
 
   const getActiveJob = useCallback(
     (tenantId: string, providerSlug: string) => {
-      return jobs.find(
-        (j) =>
-          j.tenant_id === tenantId &&
-          j.provider_slug === providerSlug &&
-          (j.status === "pending" || j.status === "running")
-      );
+      const STALE_MS = 15 * 60 * 1000; // 15 minutes
+      const now = Date.now();
+      return jobs.find((j) => {
+        if (j.tenant_id !== tenantId || j.provider_slug !== providerSlug) return false;
+        if (j.status !== "pending" && j.status !== "running") return false;
+        // Ignore stale jobs to prevent UI deadlock
+        const refDate = j.started_at ?? j.created_at;
+        const age = now - new Date(refDate).getTime();
+        return age < STALE_MS;
+      });
     },
     [jobs]
   );
