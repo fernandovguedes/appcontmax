@@ -12,6 +12,8 @@ const FUNCTION_MAP: Record<string, string> = {
   onecode: "sync-onecode-contacts",
 };
 
+const STALE_RUNNING_MS = 10 * 60 * 1000; // 10 min
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -22,16 +24,29 @@ Deno.serve(async (req) => {
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
   try {
-    // 1. First, timeout stale running jobs (> 10 min)
+    // 1. Timeout stale running jobs (> 10 min) — including those with null started_at
     await admin
       .from("integration_jobs")
       .update({
         status: "error",
         error_message: "Timeout: job ficou running por mais de 10 minutos",
         finished_at: new Date().toISOString(),
+        progress: 0,
       })
       .eq("status", "running")
-      .lt("started_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
+      .lt("started_at", new Date(Date.now() - STALE_RUNNING_MS).toISOString());
+
+    // Also handle inconsistent jobs: running but started_at is null (shouldn't happen, but safety net)
+    await admin
+      .from("integration_jobs")
+      .update({
+        status: "error",
+        error_message: "Timeout: job em running sem started_at",
+        finished_at: new Date().toISOString(),
+        progress: 0,
+      })
+      .eq("status", "running")
+      .is("started_at", null);
 
     // 2. Fetch next pending job
     const { data: job, error: jobError } = await admin
@@ -49,6 +64,8 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    console.log(`[job:${job.id}] Starting — provider=${job.provider_slug}, tenant=${job.tenant_id}, attempt=${(job.attempts ?? 0) + 1}`);
 
     // 3. Mark as running
     const startTime = Date.now();
@@ -73,6 +90,7 @@ Deno.serve(async (req) => {
     if (!ti || !ti.is_enabled) {
       const errMsg = !ti ? "Integration not found" : "Integration is disabled";
       await finalizeJob(admin, job, "error", errMsg, startTime, null);
+      await retriggerWorker(supabaseUrl, serviceRoleKey);
       return new Response(JSON.stringify({ error: errMsg }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -85,7 +103,7 @@ Deno.serve(async (req) => {
       .update({ last_status: "running", last_run: new Date().toISOString(), last_error: null })
       .eq("id", ti.id);
 
-    // 5. Update progress to 20% before delegating
+    // 5. Update progress to 20%
     await admin
       .from("integration_jobs")
       .update({ progress: 20 })
@@ -100,6 +118,7 @@ Deno.serve(async (req) => {
         .from("tenant_integrations")
         .update({ last_status: "error", last_error: errMsg })
         .eq("id", ti.id);
+      await retriggerWorker(supabaseUrl, serviceRoleKey);
       return new Response(JSON.stringify({ error: errMsg }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -126,6 +145,8 @@ Deno.serve(async (req) => {
           .single();
         if (org) fnBody.tenant_slug = org.slug;
       }
+
+      console.log(`[job:${job.id}] Calling ${functionName}`);
 
       const resp = await fetch(fnUrl, {
         method: "POST",
@@ -155,17 +176,19 @@ Deno.serve(async (req) => {
 
     // 7. Handle retry
     if (fnError && (job.attempts ?? 0) + 1 < (job.max_attempts ?? 3)) {
-      // Retry: set back to pending
+      console.log(`[job:${job.id}] Retrying — error: ${fnError}`);
       await admin
         .from("integration_jobs")
         .update({
           status: "pending",
           progress: 0,
           error_message: fnError,
+          started_at: null,
         })
         .eq("id", job.id);
 
-      // Don't update tenant_integrations yet — let the retry handle it
+      // Immediately retrigger to process the retry
+      await retriggerWorker(supabaseUrl, serviceRoleKey);
       return new Response(
         JSON.stringify({ status: "retry", job_id: job.id, attempt: (job.attempts ?? 0) + 1 }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -173,6 +196,7 @@ Deno.serve(async (req) => {
     }
 
     // 8. Finalize
+    console.log(`[job:${job.id}] Finalized — status=${finalStatus}`);
     await finalizeJob(admin, job, finalStatus, fnError, startTime, fnResponse);
 
     // Update tenant_integrations
@@ -201,12 +225,17 @@ Deno.serve(async (req) => {
       response: fnResponse,
     });
 
+    // 10. Retrigger worker to drain remaining jobs
+    await retriggerWorker(supabaseUrl, serviceRoleKey);
+
     return new Response(
       JSON.stringify({ status: finalStatus, job_id: job.id }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {
     console.error("process-integration-job error:", err);
+    // Still try to retrigger in case there are other jobs
+    await retriggerWorker(supabaseUrl, serviceRoleKey).catch(() => {});
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -234,4 +263,20 @@ async function finalizeJob(
       result,
     })
     .eq("id", job.id);
+}
+
+async function retriggerWorker(supabaseUrl: string, serviceRoleKey: string) {
+  const workerUrl = `${supabaseUrl}/functions/v1/process-integration-job`;
+  try {
+    await fetch(workerUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({}),
+    });
+  } catch (err) {
+    console.error("Failed to retrigger worker:", err);
+  }
 }
