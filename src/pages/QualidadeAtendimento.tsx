@@ -19,7 +19,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Award, BarChart3, Star, Trophy, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Award, BarChart3, Star, Trophy, ChevronDown, ChevronUp, Loader2, User } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -192,6 +198,22 @@ export default function QualidadeAtendimento() {
           resolucao: avg("resolucao"),
           conformidade: avg("conformidade"),
         };
+      })
+      .sort((a, b) => b.avgScore - a.avgScore);
+  }, [scores]);
+
+  // Group scores by attendant for accordion
+  const scoresByAttendant = useMemo(() => {
+    const map = new Map<string, TicketScore[]>();
+    scores.forEach((s) => {
+      const key = s.user_name || "Desconhecido";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(s);
+    });
+    return Array.from(map.entries())
+      .map(([name, tickets]) => {
+        const avg = tickets.reduce((sum, t) => sum + (t.score_final ?? 0), 0) / tickets.length;
+        return { name, tickets, avgScore: avg };
       })
       .sort((a, b) => b.avgScore - a.avgScore);
   }, [scores]);
@@ -377,64 +399,82 @@ export default function QualidadeAtendimento() {
               </Card>
             )}
 
-            {/* Scored Tickets List */}
-            {scores.length > 0 && (
+            {/* Scored Tickets grouped by attendant */}
+            {scoresByAttendant.length > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Tickets Avaliados</CardTitle>
                 </CardHeader>
-                <CardContent className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Ticket</TableHead>
-                        <TableHead>Atendente</TableHead>
-                        <TableHead className="text-center">Score</TableHead>
-                        <TableHead>Data</TableHead>
-                        <TableHead className="w-12"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {scores.map((s) => (
-                        <>
-                          <TableRow key={s.id} className="cursor-pointer" onClick={() => setExpandedTicket(expandedTicket === s.id ? null : s.id)}>
-                            <TableCell className="font-mono text-xs">{s.ticket_id}</TableCell>
-                            <TableCell>{s.user_name || "—"}</TableCell>
-                            <TableCell className={`text-center font-semibold ${s.score_final != null ? scoreColor(s.score_final) : ""}`}>
-                              {s.score_final != null ? s.score_final.toFixed(1) : "—"}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {new Date(s.scored_at).toLocaleDateString("pt-BR")}
-                            </TableCell>
-                            <TableCell>
-                              {expandedTicket === s.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                            </TableCell>
-                          </TableRow>
-                          {expandedTicket === s.id && (
-                            <TableRow key={`${s.id}-feedback`}>
-                              <TableCell colSpan={5} className="bg-muted/30">
-                                <div className="space-y-2 py-2">
-                                  <div className="flex gap-4 text-xs text-muted-foreground">
-                                    <span>Clareza: {s.clareza}</span>
-                                    <span>Cordialidade: {s.cordialidade}</span>
-                                    <span>Objetividade: {s.objetividade}</span>
-                                    <span>Resolução: {s.resolucao}</span>
-                                    <span>Conformidade: {s.conformidade}</span>
-                                  </div>
-                                  <p className="text-sm">{s.feedback || "Sem feedback"}</p>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </>
-                      ))}
-                    </TableBody>
-                  </Table>
+                <CardContent>
+                  <Accordion type="multiple" className="w-full">
+                    {scoresByAttendant.map((group) => (
+                      <AccordionItem key={group.name} value={group.name}>
+                        <AccordionTrigger className="hover:no-underline">
+                          <div className="flex items-center gap-3 text-left">
+                            <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            <span className="font-medium">{group.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              ({group.tickets.length} {group.tickets.length === 1 ? "ticket" : "tickets"})
+                            </span>
+                            <span className={`text-sm font-semibold ${scoreColor(group.avgScore)}`}>
+                              Média: {group.avgScore.toFixed(1)}
+                            </span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="overflow-x-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Ticket</TableHead>
+                                  <TableHead className="text-center">Score</TableHead>
+                                  <TableHead>Data</TableHead>
+                                  <TableHead className="w-12"></TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {group.tickets.map((s) => (
+                                  <>
+                                    <TableRow key={s.id} className="cursor-pointer" onClick={() => setExpandedTicket(expandedTicket === s.id ? null : s.id)}>
+                                      <TableCell className="font-mono text-xs">{s.ticket_id}</TableCell>
+                                      <TableCell className={`text-center font-semibold ${s.score_final != null ? scoreColor(s.score_final) : ""}`}>
+                                        {s.score_final != null ? s.score_final.toFixed(1) : "—"}
+                                      </TableCell>
+                                      <TableCell className="text-sm text-muted-foreground">
+                                        {new Date(s.scored_at).toLocaleDateString("pt-BR")}
+                                      </TableCell>
+                                      <TableCell>
+                                        {expandedTicket === s.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                      </TableCell>
+                                    </TableRow>
+                                    {expandedTicket === s.id && (
+                                      <TableRow key={`${s.id}-feedback`}>
+                                        <TableCell colSpan={4} className="bg-muted/30">
+                                          <div className="space-y-2 py-2">
+                                            <div className="flex gap-4 text-xs text-muted-foreground">
+                                              <span>Clareza: {s.clareza}</span>
+                                              <span>Cordialidade: {s.cordialidade}</span>
+                                              <span>Objetividade: {s.objetividade}</span>
+                                              <span>Resolução: {s.resolucao}</span>
+                                              <span>Conformidade: {s.conformidade}</span>
+                                            </div>
+                                            <p className="text-sm">{s.feedback || "Sem feedback"}</p>
+                                          </div>
+                                        </TableCell>
+                                      </TableRow>
+                                    )}
+                                  </>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
                 </CardContent>
               </Card>
             )}
-
-            {/* Unscored Tickets */}
             {unscoredTickets.length > 0 && (
               <Card>
                 <CardHeader>
