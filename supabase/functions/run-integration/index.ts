@@ -6,6 +6,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const STALE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -71,17 +73,43 @@ Deno.serve(async (req) => {
     // Check for existing pending/running job
     const { data: existingJob } = await admin
       .from("integration_jobs")
-      .select("id, status")
+      .select("id, status, created_at, started_at")
       .eq("tenant_id", tenant_id)
       .eq("provider_slug", provider_slug)
       .in("status", ["pending", "running"])
       .maybeSingle();
 
     if (existingJob) {
-      return new Response(
-        JSON.stringify({ error: "Já existe um job em andamento para esta integração", job_id: existingJob.id }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      // Auto-heal: if the job is stale (older than threshold), mark it as error
+      const jobAge = Date.now() - new Date(existingJob.started_at ?? existingJob.created_at).getTime();
+      if (jobAge > STALE_THRESHOLD_MS) {
+        console.log(`Auto-healing stale job ${existingJob.id} (age: ${Math.round(jobAge / 1000)}s)`);
+        await admin
+          .from("integration_jobs")
+          .update({
+            status: "error",
+            error_message: "Auto-heal: job ficou preso por mais de 15 minutos",
+            finished_at: new Date().toISOString(),
+            progress: 0,
+          })
+          .eq("id", existingJob.id);
+
+        // Also reset tenant_integrations ghost status
+        await admin
+          .from("tenant_integrations")
+          .update({ last_status: "error", last_error: "Auto-heal: job anterior ficou preso" })
+          .eq("id", ti.id);
+      } else {
+        // Job is recent and legitimately active
+        return new Response(
+          JSON.stringify({
+            error: "Já existe um job em andamento para esta integração",
+            job_id: existingJob.id,
+            status: existingJob.status,
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Create job

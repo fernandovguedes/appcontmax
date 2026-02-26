@@ -127,20 +127,28 @@ export function useIntegrationJobs(tenantIds?: string[]) {
         body: { tenant_id: tenantId, provider_slug: providerSlug },
       });
 
-      // supabase.functions.invoke returns error for non-2xx, but 409 is informational
+      // supabase.functions.invoke wraps non-2xx in error, but data may still have info
       if (error) {
-        // Check if response contains job_id (409 case)
+        // 409 case: job already running — data may contain job_id
         if (data?.job_id) {
-          toast({ title: "Execução em andamento", description: "Já existe uma execução em andamento para esta integração." });
+          toast({
+            title: "Execução em andamento",
+            description: "Já existe uma execução em andamento para esta integração.",
+          });
           return data;
         }
         throw error;
       }
 
       toast({ title: "Job criado", description: `Integração ${providerSlug} adicionada à fila.` });
+
+      // Short delay refetch as fallback if realtime is slow
+      setTimeout(() => fetchJobs(), 2000);
+
       return data;
     } catch (err: any) {
-      toast({ title: "Erro ao criar job", description: err.message, variant: "destructive" });
+      const msg = err?.message || err?.context?.message || "Erro desconhecido";
+      toast({ title: "Erro ao criar job", description: msg, variant: "destructive" });
     }
   };
 
