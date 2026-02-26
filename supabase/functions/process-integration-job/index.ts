@@ -13,6 +13,7 @@ const FUNCTION_MAP: Record<string, string> = {
 };
 
 const STALE_RUNNING_MS = 10 * 60 * 1000; // 10 min
+const STALE_PENDING_MS = 15 * 60 * 1000; // 15 min
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -47,6 +48,18 @@ Deno.serve(async (req) => {
       })
       .eq("status", "running")
       .is("started_at", null);
+
+    // 1b. Timeout stale pending jobs (> 15 min)
+    await admin
+      .from("integration_jobs")
+      .update({
+        status: "error",
+        error_message: "Timeout: job ficou pending por mais de 15 minutos",
+        finished_at: new Date().toISOString(),
+        progress: 0,
+      })
+      .eq("status", "pending")
+      .lt("created_at", new Date(Date.now() - STALE_PENDING_MS).toISOString());
 
     // 2. Fetch next pending job
     const { data: job, error: jobError } = await admin
