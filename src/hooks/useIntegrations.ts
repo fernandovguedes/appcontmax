@@ -51,6 +51,7 @@ export interface IntegrationLog {
 
 export interface IntegrationWithProvider extends TenantIntegration {
   providerData?: IntegrationProvider;
+  tenantName?: string;
 }
 
 export function useIntegrations(tenantId?: string) {
@@ -67,11 +68,11 @@ export function useIntegrations(tenantId?: string) {
     }
 
     try {
-      // Fetch providers
-      const { data: provData } = await supabase
-        .from("integration_providers")
-        .select("*")
-        .order("name");
+      // Fetch providers + orgs in parallel
+      const [{ data: provData }, { data: orgData }] = await Promise.all([
+        supabase.from("integration_providers").select("*").order("name"),
+        supabase.from("organizacoes").select("id, nome"),
+      ]);
 
       // Fetch tenant integrations
       let query = supabase.from("tenant_integrations").select("*");
@@ -79,14 +80,18 @@ export function useIntegrations(tenantId?: string) {
       const { data: tiData } = await query;
 
       const provs = (provData ?? []) as IntegrationProvider[];
+      const orgs = (orgData ?? []) as { id: string; nome: string }[];
       const tis = (tiData ?? []) as TenantIntegration[];
 
       setProviders(provs);
 
-      // Merge provider data into integrations
+      const orgMap = new Map(orgs.map((o) => [o.id, o.nome]));
+
+      // Merge provider data + tenant name into integrations
       const merged: IntegrationWithProvider[] = tis.map((ti) => ({
         ...ti,
         providerData: provs.find((p) => p.id === ti.provider_id),
+        tenantName: orgMap.get(ti.tenant_id),
       }));
 
       setIntegrations(merged);
