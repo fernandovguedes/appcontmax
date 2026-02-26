@@ -1,54 +1,62 @@
 
-Objetivo imediato: destravar a integração Acessórias e garantir que a fila volte a processar sem ficar presa em “pending/running”.
+# Corrigir Deadlock da Integracao Acessorias
 
-Diagnóstico confirmado (com base no estado atual):
-1) A correção de UUID já está no código (`created_by_user_id` agora vira `null` para chamada interna), então a causa original do crash foi corrigida.
-2) Ainda existem jobs antigos da Acessórias presos em `pending`, e o `run-integration` bloqueia novas execuções quando encontra qualquer `pending/running` para o mesmo tenant+provider (retorna 409).
-3) O worker atual processa 1 job por disparo e, em cenário de retry, retorna o job para `pending` sem se auto-disparar de novo; isso pode deixar fila parada sem novo gatilho.
-4) Há warnings de `ref` no frontend (AppHeader/IntegrationCard/Badge), que não parecem ser a causa do travamento da integração, mas devem ser corrigidos depois para evitar ruído.
+## Problema Raiz
 
-Plano de ação para destravar de vez:
-1. Higienização operacional da fila (dados)
-- Marcar jobs `integration_jobs` da Acessórias que estão presos (`pending`/`running` antigos) como `error` com mensagem de cleanup e `finished_at`.
-- Atualizar `tenant_integrations.last_status/last_error` coerentemente para não manter estado “running” fantasma.
-- Opcional: encerrar também `sync_jobs` muito antigos em `running` para manter histórico consistente.
+Existe um job preso em `pending` (id: `85b4f94b`, criado ha 18+ minutos) que causa um deadlock:
 
-2. Robustez no worker (`process-integration-job`)
-- Após finalizar um job (success/error/retry), re-disparar o próprio worker em fire-and-forget para drenar a fila.
-- No ramo de retry, além de voltar para `pending`, já agendar próximo processamento imediatamente.
-- Garantir que timeout trate também casos onde `started_at` está nulo mas status ficou inconsistente.
-- Melhorar logs de execução por job_id (início, função chamada, status final, tentativa).
+1. O frontend (`getActiveJob`) encontra o job `pending` e mostra o card como "Na fila..." com botao **desabilitado**
+2. O usuario nao consegue clicar "Executar" para disparar o `run-integration` (que tem auto-heal para jobs > 15 min)
+3. O worker (`process-integration-job`) so limpa jobs `running` antigos, nao `pending` antigos
+4. Resultado: a integracao fica permanentemente travada
 
-3. Robustez no criador de jobs (`run-integration`)
-- Antes de bloquear por “job em andamento”, validar idade do job ativo:
-  - se `pending`/`running` muito antigo, autocurar para `error` e permitir novo job;
-  - se realmente ativo recente, manter 409.
-- Retornar payload padronizado para 409/erros para o frontend interpretar sem ambiguidades.
+Alem disso, o tenant PG tem `last_status: running` fantasma na tabela `tenant_integrations`.
 
-4. Ajuste no frontend de jobs (`useIntegrationJobs`)
-- Melhorar tratamento de non-2xx para capturar corretamente corpo do erro 409 e mostrar toast informativo.
-- Adicionar fallback de `refetch()` curto após submit para sincronizar UI mesmo se evento realtime atrasar.
-- Exibir mensagem mais clara quando status ficar parado por muito tempo (ex.: “fila aguardando reprocessamento”).
+## Solucao (3 partes)
 
-5. Validação completa ponta a ponta (Acessórias)
-- Fluxo 1: clicar “Executar” com fila limpa → criar job → running → success/error final.
-- Fluxo 2: duplo clique rápido → segunda tentativa deve exibir “execução em andamento” (sem erro genérico).
-- Fluxo 3: erro forçado de integração → retry automático deve ocorrer e não deixar job preso.
-- Fluxo 4: dois tenants com jobs da Acessórias na fila → worker deve drenar ambos sem intervenção manual.
-- Critério de aceite: nenhum job da Acessórias fica indefinidamente em `pending/running` sem progresso; novos cliques em “Executar” não ficam travados por resíduos antigos.
+### 1. Limpeza imediata dos dados travados
 
-Arquivos que serão ajustados na implementação:
-- `supabase/functions/process-integration-job/index.ts` (drenagem/auto-retrigger/retry robusto)
-- `supabase/functions/run-integration/index.ts` (autocura de jobs antigos + bloqueio inteligente)
-- `src/hooks/useIntegrationJobs.ts` (tratamento robusto de 409/non-2xx + sincronização UI)
-- Operação de dados no backend para limpar jobs presos existentes
+Migracao SQL para:
+- Marcar o job `85b4f94b` (pending ha 18 min) como `error`
+- Limpar o `last_status` fantasma do tenant PG (`30e6da4c`)
 
-Riscos e mitigação:
-- Risco: autocura agressiva encerrar job legítimo. Mitigação: limiar temporal conservador e checagem por timestamps.
-- Risco: loop de worker sem fim. Mitigação: re-disparo somente quando ainda existir job pendente e com proteção por tentativa máxima.
-- Risco: inconsistência entre `integration_jobs` e `sync_jobs`. Mitigação: cleanup coordenado e logging por `job_id`.
+### 2. Worker: adicionar timeout para jobs `pending` antigos
 
-Resultado esperado após executar este plano:
-- O estado “travou” desaparece.
-- Acessórias volta a executar normalmente.
-- Fila assíncrona fica auto-recuperável mesmo após falhas.
+No `process-integration-job/index.ts`, alem do timeout de jobs `running`, adicionar timeout para jobs `pending` presos ha mais de 15 minutos sem serem processados. Isso impede que jobs pendentes que nunca foram pegos pelo worker fiquem travando a fila.
+
+```text
+// Novo bloco no worker, logo apos o timeout de running:
+await admin
+  .from("integration_jobs")
+  .update({
+    status: "error",
+    error_message: "Timeout: job ficou pending por mais de 15 minutos",
+    finished_at: new Date().toISOString(),
+    progress: 0,
+  })
+  .eq("status", "pending")
+  .lt("created_at", new Date(Date.now() - STALE_PENDING_MS).toISOString());
+```
+
+### 3. Frontend: considerar jobs `pending` antigos como nao-ativos
+
+No `useIntegrationJobs.ts`, o `getActiveJob` deve ignorar jobs `pending` com mais de 15 minutos, para nao bloquear o botao "Executar" indefinidamente:
+
+```text
+getActiveJob: filtra apenas jobs pending/running que tenham sido
+criados/iniciados ha menos de 15 minutos
+```
+
+## Arquivos
+
+| Arquivo | Alteracao |
+|---------|----------|
+| Migracao SQL | Limpar job travado + status fantasma |
+| `supabase/functions/process-integration-job/index.ts` | Timeout para pending antigos |
+| `src/hooks/useIntegrationJobs.ts` | getActiveJob ignora pending antigos |
+
+## Resultado
+
+- O botao "Executar" volta a funcionar imediatamente
+- Jobs pending que ficarem presos serao limpos automaticamente pelo worker
+- O frontend nunca mais ficara travado por jobs antigos
