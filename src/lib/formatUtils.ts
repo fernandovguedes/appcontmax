@@ -16,7 +16,8 @@ const MES_INDEX: Record<MesKey, number> = {
   outubro: 10, novembro: 11, dezembro: 12,
 };
 
-export function getCompetenciaAtual(mesSelecionado: MesKey): string {
+export function getCompetenciaAtual(mesSelecionado: MesKey, ano?: number): string {
   const mes = MES_INDEX[mesSelecionado];
-  return `2026-${String(mes).padStart(2, "0")}`;
+  const year = ano ?? new Date().getFullYear();
+  return `${year}-${String(mes).padStart(2, "0")}`;
 }

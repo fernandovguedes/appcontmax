@@ -156,6 +156,10 @@ export default function Admin() {
 
   const handleCreateUser = async () => {
     if (!newEmail || !newPassword || !newNome) return;
+    if (newPassword.length < 6) {
+      toast({ title: "Senha muito curta", description: "A senha deve ter pelo menos 6 caracteres.", variant: "destructive" });
+      return;
+    }
     setCreating(true);
     try {
       const { error } = await supabase.functions.invoke("create-admin", {
@@ -167,7 +171,7 @@ export default function Admin() {
       setNewEmail("");
       setNewNome("");
       setNewPassword("");
-      setTimeout(fetchData, 1500);
+      await fetchData();
     } catch (err: any) {
       toast({ title: "Erro ao criar usuário", description: err.message, variant: "destructive" });
     } finally {

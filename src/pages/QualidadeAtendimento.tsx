@@ -181,7 +181,7 @@ export default function QualidadeAtendimento() {
     return Array.from(map.entries())
       .map(([name, { scores: sc }]) => {
         const avg = (field: keyof TicketScore) =>
-          sc.reduce((sum, s) => sum + Number(s[field] ?? 0), 0) / sc.length;
+          sc.length > 0 ? sc.reduce((sum, s) => sum + Number(s[field] ?? 0), 0) / sc.length : 0;
         return {
           name,
           tickets: sc.length,

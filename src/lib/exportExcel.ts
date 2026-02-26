@@ -114,5 +114,5 @@ export function exportToExcel(empresas: Empresa[], mesSelecionado: MesKey) {
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, MES_LABELS[mesSelecionado]);
-  XLSX.writeFile(wb, `Controle_Fiscal_${MES_LABELS[mesSelecionado]}_2026.xlsx`);
+  XLSX.writeFile(wb, `Controle_Fiscal_${MES_LABELS[mesSelecionado]}_${new Date().getFullYear()}.xlsx`);
 }

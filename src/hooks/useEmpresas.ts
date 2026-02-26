@@ -100,7 +100,7 @@ function empresaToFullRow(e: Empresa) {
     nome: e.nome,
     cnpj: e.cnpj,
     data_abertura: e.inicioCompetencia,
-    data_cadastro: e.dataCadastro || "2026-01-01",
+    data_cadastro: e.dataCadastro || new Date().toISOString().split("T")[0],
     regime_tributario: e.regimeTributario,
     emite_nota_fiscal: e.emiteNotaFiscal,
     socios: e.socios,
@@ -193,7 +193,9 @@ export function useEmpresas(organizacaoId?: string) {
 
   const updateEmpresa = useCallback(async (id: string, updates: Partial<Empresa>) => {
     const row = empresaToRow(updates);
+    setLoading(true);
     const { error } = await supabase.from("empresas").update(row).eq("id", id);
+    setLoading(false);
     if (error) {
       toast({ title: "Erro ao atualizar empresa", description: error.message, variant: "destructive" });
       return;
@@ -202,7 +204,9 @@ export function useEmpresas(organizacaoId?: string) {
   }, [toast]);
 
   const deleteEmpresa = useCallback(async (id: string) => {
+    setLoading(true);
     const { error } = await supabase.from("empresas").delete().eq("id", id);
+    setLoading(false);
     if (error) {
       toast({ title: "Erro ao deletar empresa", description: error.message, variant: "destructive" });
       return;

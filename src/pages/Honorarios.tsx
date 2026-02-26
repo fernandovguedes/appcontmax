@@ -48,7 +48,7 @@ export default function Honorarios() {
     <div className="min-h-screen bg-background">
       <AppHeader
         title="Honorários Mensal"
-        subtitle="Contmax · 2026"
+        subtitle={`Contmax · ${new Date().getFullYear()}`}
         showBack
         showLogout
         breadcrumbs={[{ label: "Portal", href: "/" }, { label: "Honorários Mensal" }]}

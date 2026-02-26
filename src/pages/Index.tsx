@@ -66,9 +66,12 @@ const Index = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
 
-  // Clear selection when month changes
+  // Clear selection and open dialogs when month changes
   useEffect(() => {
     setSelectedIds(new Set());
+    setFaturamentoEmpresa(null);
+    setWhatsappEmpresa(null);
+    setBatchDialogOpen(false);
   }, [mesSelecionado]);
 
   const isFechamento = isMesFechamentoTrimestre(mesSelecionado);
@@ -82,18 +85,25 @@ const Index = () => {
     const matchesRegime = regimeFilter === "todos" || e.regimeTributario === regimeFilter;
 
     let matchesReinf = true;
-    if (reinfFilter && isFechamento) {
-      const fatTrimestre = calcularFaturamentoTrimestre(e, mesSelecionado);
-      matchesReinf = fatTrimestre > 0;
+    if (reinfFilter) {
+      if (isFechamento) {
+        const fatTrimestre = calcularFaturamentoTrimestre(e, mesSelecionado);
+        matchesReinf = fatTrimestre > 0;
+      } else {
+        // Filtro REINF só é aplicável em meses de fechamento de trimestre
+        matchesReinf = true;
+      }
     }
 
     let matchesNfExterior = true;
     if (nfFilter || exteriorFilter || alugueisFilter) {
-      const dados = e.meses[mesSelecionado];
-      const passNf = !nfFilter || dados.faturamentoNotaFiscal > 0;
-      const passExt = !exteriorFilter || dados.faturamentoExterior > 0;
-      const passAlug = !alugueisFilter || (dados.faturamentoAlugueis || 0) > 0;
-      matchesNfExterior = passNf && passExt && passAlug;
+      const dados = e.meses?.[mesSelecionado];
+      if (dados) {
+        const passNf = !nfFilter || dados.faturamentoNotaFiscal > 0;
+        const passExt = !exteriorFilter || dados.faturamentoExterior > 0;
+        const passAlug = !alugueisFilter || (dados.faturamentoAlugueis || 0) > 0;
+        matchesNfExterior = passNf && passExt && passAlug;
+      }
     }
 
     let matchesDctfSm = true;
@@ -104,14 +114,14 @@ const Index = () => {
 
     let matchesQuestor = true;
     if (questorFilter) {
-      const dados = e.meses[mesSelecionado];
-      matchesQuestor = dados.lancadoQuestor === "pendente";
+      const dados = e.meses?.[mesSelecionado];
+      matchesQuestor = dados ? dados.lancadoQuestor === "pendente" : false;
     }
 
     let matchesExtratoPendente = true;
     if (extratoPendenteFilter) {
-      const dados = e.meses[mesSelecionado];
-      matchesExtratoPendente = dados.extratoEnviado === "nao";
+      const dados = e.meses?.[mesSelecionado];
+      matchesExtratoPendente = dados ? dados.extratoEnviado === "nao" : false;
     }
 
     return (
@@ -190,7 +200,7 @@ const Index = () => {
   const handleWhatsAppConfirm = useCallback(
     async (opts?: { is_resend?: boolean; resend_reason?: string }) => {
       if (!whatsappEmpresa) return;
-      const comp = `${MES_LABELS[mesSelecionado]}/2026`;
+      const comp = `${MES_LABELS[mesSelecionado]}/${new Date().getFullYear()}`;
       const body = `Olá, ${whatsappEmpresa.nome}! Identificamos que o extrato de ${comp} ainda não foi enviado. Pode nos encaminhar por gentileza? Lembramos que caso não seja enviado, as declarações mensais serão entregues sem movimento.`;
 
       const { data, error } = await supabase.functions.invoke("send-whatsapp", {
@@ -225,7 +235,7 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <AppHeader
         title="Controle Fiscal"
-        subtitle="Contmax · 2026"
+        subtitle={`Contmax · ${new Date().getFullYear()}`}
         showBack
         showLogout
         breadcrumbs={[{ label: "Portal", href: "/" }, { label: "Controle Fiscal" }]}
