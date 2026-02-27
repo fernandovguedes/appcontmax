@@ -111,11 +111,23 @@ async function processBatch(
       : [];
 
     if (companies.length === 0) {
+      console.log(`[sync-acessorias] Page ${page}: empty response. Keys in data: ${Object.keys(data || {}).join(", ")}`);
       return { counters: c, nextPage: null, totalPages };
     }
 
     if (page === startPage || totalPages === 0) {
       totalPages = data?.totalPages || data?.total_pages || 0;
+      console.log(`[sync-acessorias] Page ${page}: ${companies.length} companies, totalPages=${totalPages}, response keys: ${Object.keys(data || {}).join(", ")}`);
+    }
+
+    // Log first 3 companies of each batch for diagnostics
+    const samplesToLog = Math.min(3, companies.length);
+    for (let i = 0; i < samplesToLog; i++) {
+      const company = companies[i];
+      const rawKey = company.cnpj || company.cpf || company.identificador || company.document || "";
+      const digits = rawKey.replace(/\D/g, "");
+      const formattedKey = formatCnpj(rawKey);
+      console.log(`[sync-acessorias] DIAG company[${i}]: rawKey="${rawKey}" digits="${digits}" formattedKey="${formattedKey}" nome="${company.razaoSocial || company.nome || "?"}" keys=${Object.keys(company).join(",")}`);
     }
 
     for (const company of companies) {
@@ -129,16 +141,53 @@ async function processBatch(
         }
 
         const formattedKey = formatCnpj(rawKey);
+        const digitsOnly = rawKey.replace(/\D/g, "");
         const nome = company.razaoSocial || company.razao_social || company.nome || company.name || "Sem nome";
         const sortedJson = JSON.stringify(company, Object.keys(company).sort());
         const hash = await sha256(sortedJson);
 
-        const { data: existing } = await supabase
+        // Try matching by formatted CNPJ first, then by digits-only external_key
+        let existing: { id: string; hash_payload: string | null } | null = null;
+
+        const { data: byFormattedCnpj } = await supabase
           .from("empresas")
           .select("id, hash_payload")
           .eq("organizacao_id", tenantId)
           .eq("cnpj", formattedKey)
           .maybeSingle();
+
+        existing = byFormattedCnpj;
+
+        // If not found by formatted CNPJ, try by external_key (digits only)
+        if (!existing && digitsOnly) {
+          const { data: byExternalKey } = await supabase
+            .from("empresas")
+            .select("id, hash_payload")
+            .eq("organizacao_id", tenantId)
+            .eq("external_key", digitsOnly)
+            .maybeSingle();
+          existing = byExternalKey;
+        }
+
+        // If still not found, try matching by digits in cnpj column (strip formatting from DB value)
+        if (!existing && digitsOnly) {
+          const { data: allCandidates } = await supabase
+            .from("empresas")
+            .select("id, hash_payload, cnpj")
+            .eq("organizacao_id", tenantId);
+
+          if (allCandidates) {
+            const match = allCandidates.find(e => e.cnpj.replace(/\D/g, "") === digitsOnly);
+            if (match) {
+              existing = { id: match.id, hash_payload: match.hash_payload };
+            }
+          }
+        }
+
+        // Log first few match results for diagnostics
+        if (c.totalRead <= 5) {
+          console.log(`[sync-acessorias] MATCH company #${c.totalRead}: formattedKey="${formattedKey}" digitsOnly="${digitsOnly}" found=${!!existing} existingId=${existing?.id || "none"} hashMatch=${existing?.hash_payload === hash}`);
+        }
 
         if (!existing) {
           const { error: insertErr } = await supabase.from("empresas").insert({
@@ -151,12 +200,15 @@ async function processBatch(
             obrigacoes: {},
             socios: [],
             external_source: "acessorias",
-            external_key: normalizeKey(rawKey),
+            external_key: digitsOnly,
             raw_payload: company,
             hash_payload: hash,
             synced_at: new Date().toISOString(),
           });
           if (insertErr) {
+            if (c.totalErrors < 5) {
+              console.log(`[sync-acessorias] INSERT ERROR: ${formattedKey} — ${insertErr.message}`);
+            }
             await logEntry("error", `Insert failed: ${formattedKey}`, { error: insertErr.message });
             c.totalErrors++;
           } else {
@@ -168,7 +220,7 @@ async function processBatch(
             .update({
               nome,
               external_source: "acessorias",
-              external_key: normalizeKey(rawKey),
+              external_key: digitsOnly,
               raw_payload: company,
               hash_payload: hash,
               synced_at: new Date().toISOString(),
@@ -189,7 +241,7 @@ async function processBatch(
       }
     }
 
-    await logEntry("info", `Page ${page} processed: ${companies.length} companies`);
+    await logEntry("info", `Page ${page} processed: ${companies.length} companies — created=${c.totalCreated} updated=${c.totalUpdated} skipped=${c.totalSkipped} errors=${c.totalErrors}`);
     await updateSyncJobProgress(supabase, syncJobId, c);
 
     // Update integration_job progress (50-95% range)
